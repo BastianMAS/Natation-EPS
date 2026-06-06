@@ -98,6 +98,7 @@ function rowToStudent(row, map, idx) {
     classe: g('classe') || 'Inconnue',
     note: g('note'),
     groupe: null, etape: 0, criteres: {}, crawl: null, observ: {}, chrono: null,
+    techG3: {}, sousGroupe: null,
   };
 }
 
@@ -278,7 +279,7 @@ function etapeLabel(s) {
     const ko = CRITERES.filter(c=>s.criteres[c.id]===false).length;
     if (s.groupe==='1') return `Non nageur · ${ko} critère${ko>1?'s':''} échoué${ko>1?'s':''}`;
     if (s.groupe==='2') return 'Nageur autonome · pas de crawl';
-    if (s.groupe==='3') return `Crawl maîtrisé${s.chrono?' · '+s.chrono+'s':''}`;
+    if (s.groupe==='3') return `${s.sousGroupe||'G3'} · Crawl maîtrisé${s.chrono?' · '+s.chrono+'s':''}`;
   }
   const nb = Object.keys(s.criteres).length;
   if (s.etape===0) return 'Pas encore évalué';
@@ -430,58 +431,154 @@ function setCrawl(v) {
   }
 }
 
-// ── ÉTAPE 3 : 50m + chrono ──
+// ── ÉTAPE 3 : Observation technique 50m + chrono 25m ──
+
+// 6 critères avec 3 comportements observables chacun
+const TECH_G3 = [
+  {
+    id: 'plongeon', ico: '🤽', lbl: 'Plongeon',
+    niveaux: [
+      { v: 2, txt: 'Gainé · axe · coulée immédiate' },
+      { v: 1, txt: 'Entrée de côté · semi-gainé' },
+      { v: 0, txt: 'Plat · tête relevée · bruit impact' },
+    ]
+  },
+  {
+    id: 'coulee', ico: '🌊', lbl: 'Coulée',
+    niveaux: [
+      { v: 2, txt: 'Horizontal · bras tendus · ≥ 5m' },
+      { v: 1, txt: 'Courte 2-4m · corps désaxé' },
+      { v: 0, txt: 'Remontée immédiate · reprise brasse sous l\'eau' },
+    ]
+  },
+  {
+    id: 'propulsion', ico: '💪', lbl: 'Propulsion (bras)',
+    niveaux: [
+      { v: 2, txt: 'Traction jusqu\'à la cuisse · recouvrement haut' },
+      { v: 1, txt: 'Traction courte (ventre) · recouvrement bas' },
+      { v: 0, txt: 'Bras en surface · croisé · pas de propulsion' },
+    ]
+  },
+  {
+    id: 'coordination', ico: '🔄', lbl: 'Coordination bras/jambes',
+    niveaux: [
+      { v: 2, txt: '6 battements/cycle · régulier · jambes continues' },
+      { v: 1, txt: 'Irrégulier · pauses · genoux cassés' },
+      { v: 0, txt: 'Jambes arrêtées · ciseau · battement brasse' },
+    ]
+  },
+  {
+    id: 'equilibre', ico: '⚖️', lbl: 'Équilibre',
+    niveaux: [
+      { v: 2, txt: 'Bassin haut · horizontal · tête dans l\'axe' },
+      { v: 1, txt: 'Bassin semi-immergé · position en Z' },
+      { v: 0, txt: 'Vertical · jambes profondes · marche dans l\'eau' },
+    ]
+  },
+  {
+    id: 'respiration', ico: '😮‍💨', lbl: 'Respiration',
+    niveaux: [
+      { v: 2, txt: 'Rotation latérale · expiration eau · rythmée' },
+      { v: 1, txt: 'Tête se soulève · rotation tardive · irrégulier' },
+      { v: 0, txt: 'Tête hors eau en permanence · apnée' },
+    ]
+  },
+];
+
 function renderStep3(el) {
-  const s=currentStudent, obs=s.observ||{};
+  const s = currentStudent;
+  if (!s.techG3) s.techG3 = {};
+
+  // Score auto pour suggestion sous-groupe
+  const scores = TECH_G3.map(c => s.techG3[c.id] !== undefined ? s.techG3[c.id] : -1);
+  const filled = scores.filter(v => v >= 0).length;
+  const total  = scores.filter(v => v >= 0).reduce((a,b) => a+b, 0);
+  const suggest = filled === 6 ? (total >= 9 ? 'G3A' : 'G3B') : null;
+
   el.innerHTML = `
     <div class="steps">
       <div class="step done"></div><div class="step done"></div><div class="step cur"></div>
     </div>
+
     <div class="card">
-      <div class="card-title">👁 Observation 50m NL souple</div>
-      <div class="obs-grid">
-        ${[
-          {id:'propulsion',   ico:'💪', lbl:'Propulsion efficace'},
-          {id:'equilibre',    ico:'⚖️', lbl:'Équilibre horizontal'},
-          {id:'respiration',  ico:'😮‍💨', lbl:'Respiration rythmée'},
-          {id:'coordination', ico:'🔄', lbl:'Coordination bras/jambes'},
-        ].map(o=>`<div class="obs-item ${obs[o.id]?'sel':''}" onclick="toggleObs('${o.id}')">
-          <div class="obs-ico">${o.ico}</div>
-          <div class="obs-lbl">${o.lbl}</div>
-        </div>`).join('')}
-      </div>
+      <div class="card-title">👁 Observation technique — 50m NL souple</div>
+      <p style="font-size:12px;color:var(--mid);margin-bottom:12px">Sélectionner le comportement observé pour chaque critère</p>
+      ${TECH_G3.map(c => {
+        const val = s.techG3[c.id];
+        return `
+          <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--gray)">
+            <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:7px">
+              ${c.ico} ${c.lbl}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              ${c.niveaux.map(n => {
+                const sel = val === n.v;
+                const bg  = sel ? (n.v===2 ? '#D1FAE5' : n.v===1 ? '#FEF3C7' : '#FEE2E2') : 'var(--gray)';
+                const col = sel ? (n.v===2 ? '#065F46' : n.v===1 ? '#92400E' : '#991B1B') : 'var(--mid)';
+                const ico = n.v===2 ? '🟢' : n.v===1 ? '🟡' : '🔴';
+                return `<button onclick="setTechG3('${c.id}',${n.v})"
+                  style="background:${bg};color:${col};border:none;border-radius:9px;
+                  padding:9px 12px;text-align:left;font-family:'DM Sans',sans-serif;
+                  font-size:13px;font-weight:${sel?'600':'400'};cursor:pointer;
+                  display:flex;align-items:center;gap:8px;transition:all .15s">
+                  <span>${ico}</span><span>${n.txt}</span>
+                </button>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }).join('')}
     </div>
+
+    ${suggest ? `
+    <div style="background:${suggest==='G3A'?'#D1FAE5':'#FEF3C7'};border-radius:12px;
+      padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px">${suggest==='G3A'?'🌟':'🏊'}</span>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;
+          color:${suggest==='G3A'?'#065F46':'#92400E'}">Suggestion : ${suggest}</div>
+        <div style="font-size:12px;color:var(--mid)">Score technique ${total}/12 · Ajustable ci-dessous</div>
+      </div>
+    </div>` : filled > 0 ? `
+    <div style="background:var(--gray);border-radius:12px;padding:12px 14px;margin-bottom:12px;
+      font-size:13px;color:var(--mid)">${filled}/6 critères observés</div>` : ''}
+
     <div class="card">
       <div class="card-title">⏱ Chrono 25m NL — Plongeon · Coulée · Sprint</div>
       <div class="chrono-wrap">
-        <div class="chrono-lbl">Temps en secondes</div>
+        <div class="chrono-lbl">Temps en secondes (ex: 18.45)</div>
         <input class="chrono-in" type="number" inputmode="decimal" placeholder="—"
           step="0.01" min="0" max="120" id="chrono-in"
           value="${s.chrono||''}" oninput="saveChrono(this.value)">
-        <div class="chrono-hint">Évaluation diagnostique initiale</div>
+        <div class="chrono-hint">Éval. diagnostique · début de cycle</div>
       </div>
     </div>
+
     <div class="ebtns">
-      <button class="ebtn g3c" onclick="setG3()">🌊 Valider → Groupe 3 (Crawl maîtrisé)</button>
+      <button class="ebtn g3c" onclick="setG3('G3A')"
+        style="background:#10B981">🌟 Valider → G3A (Excellent nageur)</button>
+      <button class="ebtn g3c" onclick="setG3('G3B')"
+        style="background:#0EA5C9">🏊 Valider → G3B (Nageur à affiner)</button>
       <button class="ebtn g2c" onclick="retourG2()">← Finalement Groupe 2</button>
       <button class="ebtn gray" onclick="retourCrawl()">← Retour</button>
     </div>`;
 }
 
-function toggleObs(id) {
-  if (!currentStudent.observ) currentStudent.observ={};
-  currentStudent.observ[id]=!currentStudent.observ[id];
+function setTechG3(critId, val) {
+  if (!currentStudent.techG3) currentStudent.techG3 = {};
+  currentStudent.techG3[critId] = val;
   save(); renderEval();
 }
 
-function saveChrono(v) { currentStudent.chrono=parseFloat(v)||null; save(); }
+function saveChrono(v) { currentStudent.chrono = parseFloat(v) || null; save(); }
 
-function setG3() {
-  const inp=document.getElementById('chrono-in');
-  if (inp) currentStudent.chrono=parseFloat(inp.value)||currentStudent.chrono||null;
-  currentStudent.groupe='3'; currentStudent.etape=99;
+function setG3(sousGroupe) {
+  const inp = document.getElementById('chrono-in');
+  if (inp) currentStudent.chrono = parseFloat(inp.value) || currentStudent.chrono || null;
+  currentStudent.groupe = '3';
+  currentStudent.sousGroupe = sousGroupe || 'G3B';
+  currentStudent.etape = 99;
   save(); refreshEvalHeader(); renderEval(); updateCounts();
-  showToast('✅ Groupe 3 attribué');
+  showToast(`✅ ${sousGroupe} attribué`);
 }
 
 function retourG2() {
@@ -498,7 +595,10 @@ function renderRecap(el) {
   const GL={
     '1':{title:'Groupe 1 — Non nageur',     ico:'🚨', desc:"Échec à au moins un critère du savoir nager.", c:'g1'},
     '2':{title:'Groupe 2 — Nageur autonome',ico:'🏊', desc:"Valide le savoir nager, nage hasardeuse sans crawl.", c:'g2'},
-    '3':{title:'Groupe 3 — Crawl maîtrisé', ico:'🌊', desc:"Crawl identifiable, très à l'aise dans l'eau.", c:'g3'},
+    '3':{title: s.sousGroupe==='G3A' ? 'G3A — Excellent nageur' : 'G3B — Nageur à affiner',
+         ico: s.sousGroupe==='G3A' ? '🌟' : '🏊',
+         desc: s.sousGroupe==='G3A' ? "Technique maîtrisée · nageur de club ou très bon niveau." : "Crawl identifiable, technique à consolider.",
+         c:'g3'},
   };
   const gl=GL[s.groupe];
   const ko=CRITERES.filter(c=>s.criteres[c.id]===false);
@@ -552,6 +652,23 @@ function renderRecap(el) {
           <div class="clabel">${v}</div></div>`).join('')}
     </div>`:''}
 
+    ${s.groupe==='3' && s.techG3 && Object.keys(s.techG3).length ? `
+    <div class="card">
+      <div class="card-title">📋 Observations techniques 50m</div>
+      ${TECH_G3.map(c => {
+        const val = s.techG3[c.id];
+        if (val === undefined) return '';
+        const niv = c.niveaux.find(n => n.v === val);
+        const ico = val===2?'🟢':val===1?'🟡':'🔴';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gray)">
+          <span>${c.ico}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--navy);flex:0 0 100px">${c.lbl}</span>
+          <span>${ico}</span>
+          <span style="font-size:12px;color:var(--mid)">${niv?niv.txt:''}</span>
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+
     <div class="ebtns" style="margin-top:4px">
       <button class="ebtn gray" onclick="resetEval()">↺ Réévaluer cet élève</button>
     </div>`;
@@ -573,7 +690,14 @@ function exportClass() {
     nom:s.nom, prenom:s.prenom, date_naissance:s.ddn||'',
     sexe:s.sexe||'', classe:s.classe, note_eleve:s.note||'',
     groupe_num:s.groupe||'', groupe_label:s.groupe?['','Non nageur','Nageur autonome','Crawl maîtrisé'][s.groupe]:'Non évalué',
-    chrono_25m:s.chrono||'', etape:s.etape, criteres:JSON.stringify(s.criteres),
+    sous_groupe: s.sousGroupe||'',
+    chrono_25m:s.chrono||'', etape:s.etape,
+    tech_plongeon: s.techG3?.plongeon ?? '',
+    tech_coulee: s.techG3?.coulee ?? '',
+    tech_propulsion: s.techG3?.propulsion ?? '',
+    tech_coordination: s.techG3?.coordination ?? '',
+    tech_equilibre: s.techG3?.equilibre ?? '',
+    tech_respiration: s.techG3?.respiration ?? '',
     criteres_echoues:CRITERES.filter(c=>s.criteres[c.id]===false).map(c=>c.label).join(', '),
     observations:Object.entries(s.observ||{}).filter(([,v])=>v).map(([k])=>k).join(', '),
   }));
