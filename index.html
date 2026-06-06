@@ -76,8 +76,14 @@
     <div class="import-format">
       <p class="format-title">Format attendu :</p>
       <pre class="format-code">[
-  { "nom": "DUPONT", "prenom": "Emma", "classe": "6A" },
-  { "nom": "MARTIN", "prenom": "Lucas", "classe": "6A" }
+  {
+    "nom": "DUPONT",
+    "prenom": "Emma",
+    "date_naissance": "14/03/2013",
+    "sexe": "F",
+    "classe": "6A",
+    "note_eleve": "PAP - Dyslexie"
+  }
 ]</pre>
       <button class="btn-ghost" onclick="downloadSample()">📥 Télécharger un exemple</button>
     </div>
@@ -141,6 +147,7 @@
     <h2 id="eval-student-name">Élève</h2>
     <div id="eval-group-badge" class="group-badge-sm"></div>
   </div>
+  <div id="eval-alert-banner" class="eval-alert-banner hidden"></div>
   <div class="screen-body" id="eval-content">
     <!-- Généré dynamiquement selon étape -->
   </div>

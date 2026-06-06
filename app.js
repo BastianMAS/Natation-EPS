@@ -76,7 +76,10 @@ function handleImport(event) {
         nom: (d.nom || '').trim().toUpperCase(),
         prenom: (d.prenom || '').trim(),
         classe: (d.classe || 'Inconnue').trim(),
-        groupe: d.groupe_num || null,  // permet re-import d'un export
+        ddn: (d.date_naissance || d.ddn || '').trim(),
+        sexe: (d.sexe || '').trim(),
+        note_eleve: (d.note_eleve || '').trim(),  // ULIS, PAP, PPS, handicap...
+        groupe: d.groupe_num || null,
         etape: d.etape || 0,
         criteres: d.criteres || {},
         crawl: d.crawl || null,
@@ -104,8 +107,12 @@ function showPreview() {
   document.getElementById('preview-count').textContent =
     `${importBuffer.length} élève(s) — ${[...new Set(importBuffer.map(s => s.classe))].join(', ')}`;
   list.innerHTML = importBuffer.slice(0, 30).map(s =>
-    `<div class="preview-item">🧑 <span>${s.prenom} ${s.nom}</span>
-     <span style="color:var(--text-lite);margin-left:auto">${s.classe}</span></div>`
+    `<div class="preview-item">
+       ${s.sexe === 'F' ? '👧' : s.sexe === 'M' ? '👦' : '🧑'}
+       <span>${s.prenom} ${s.nom}</span>
+       ${s.note_eleve ? `<span class="badge-note-eleve">⚡ ${s.note_eleve}</span>` : ''}
+       <span style="color:var(--text-lite);margin-left:auto">${s.classe}</span>
+     </div>`
   ).join('') + (importBuffer.length > 30
     ? `<div class="preview-item" style="color:var(--text-lite)">... et ${importBuffer.length - 30} autres</div>`
     : '');
@@ -130,9 +137,9 @@ function confirmImport() {
 
 function downloadSample() {
   const sample = [
-    { nom: "DUPONT", prenom: "Emma", classe: "6A" },
-    { nom: "MARTIN", prenom: "Lucas", classe: "6A" },
-    { nom: "BERNARD", prenom: "Chloé", classe: "6A" },
+    { nom: "DUPONT",   prenom: "Emma",  date_naissance: "14/03/2013", sexe: "F", classe: "6A", note_eleve: "" },
+    { nom: "MARTIN",   prenom: "Lucas", date_naissance: "07/09/2012", sexe: "M", classe: "6A", note_eleve: "PAP - Dyslexie" },
+    { nom: "BERNARD",  prenom: "Chloé", date_naissance: "22/11/2013", sexe: "F", classe: "6A", note_eleve: "ULIS - Déficience motrice" },
   ];
   downloadJSON(sample, 'exemple_classe.json');
 }
@@ -250,7 +257,7 @@ function renderStudents() {
       <div class="student-card ${groupClass}" onclick="openEval('${s.id}')">
         <div class="student-avatar ${avatarClass}">${initiales}</div>
         <div class="student-info">
-          <div class="student-name">${s.prenom} ${s.nom}</div>
+          <div class="student-name">${s.prenom} ${s.nom}${s.note_eleve ? ' <span class="alert-dot" title="' + s.note_eleve + '">⚡</span>' : ''}</div>
           <div class="student-sub">${getEtapeLabel(s)}</div>
         </div>
         <span class="group-pill ${pillClass}">${groupLabel}</span>
@@ -318,6 +325,16 @@ function updateEvalHeader() {
   } else {
     badge.textContent = 'À évaluer';
     badge.className = 'group-badge-sm pill-pending';
+  }
+  // Alerte besoin particulier dans le header
+  const alertEl = document.getElementById('eval-alert-banner');
+  if (alertEl) {
+    if (s.note_eleve) {
+      alertEl.textContent = '⚡ ' + s.note_eleve;
+      alertEl.classList.remove('hidden');
+    } else {
+      alertEl.classList.add('hidden');
+    }
   }
 }
 
@@ -575,8 +592,38 @@ function renderRecap(container) {
   const failedCriteres = CRITERES.filter(c => s.criteres[c.id] === false);
   const validCriteres  = CRITERES.filter(c => s.criteres[c.id] === true);
 
+  // Calcul âge
+  let ageStr = '';
+  if (s.ddn) {
+    const parts = s.ddn.split('/');
+    if (parts.length === 3) {
+      const birth = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
+      const now = new Date();
+      const age = now.getFullYear() - birth.getFullYear() -
+        (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+      ageStr = isNaN(age) ? '' : `${age} ans`;
+    }
+  }
+
   container.innerHTML = `
     <div class="eval-step">
+
+      ${(s.ddn || s.sexe || s.note_eleve) ? `
+      <div class="fiche-eleve-card">
+        <div class="fiche-eleve-row">
+          <span class="fiche-label">Classe</span><span class="fiche-value">${s.classe}</span>
+        </div>
+        ${s.ddn ? `<div class="fiche-eleve-row">
+          <span class="fiche-label">Naissance</span><span class="fiche-value">${s.ddn}${ageStr ? ' · ' + ageStr : ''}</span>
+        </div>` : ''}
+        ${s.sexe ? `<div class="fiche-eleve-row">
+          <span class="fiche-label">Sexe</span><span class="fiche-value">${s.sexe === 'F' ? '👧 Fille' : s.sexe === 'M' ? '👦 Garçon' : s.sexe}</span>
+        </div>` : ''}
+        ${s.note_eleve ? `<div class="fiche-eleve-row fiche-alerte">
+          <span class="fiche-label">⚡ Besoin particulier</span><span class="fiche-value">${s.note_eleve}</span>
+        </div>` : ''}
+      </div>` : ''}
+
       <div class="result-banner ${gl.cls}" style="margin-top:8px">
         <div class="result-banner-icon">${gl.icon}</div>
         <div class="result-banner-title">${gl.title}</div>
@@ -659,7 +706,10 @@ function exportClass() {
   const data = students.map(s => ({
     nom: s.nom,
     prenom: s.prenom,
+    date_naissance: s.ddn || '',
+    sexe: s.sexe || '',
     classe: s.classe,
+    note_eleve: s.note_eleve || '',
     groupe_num: s.groupe || null,
     groupe_label: s.groupe ? ['', 'Non nageur', 'Nageur autonome', 'Crawl maîtrisé'][s.groupe] : 'Non évalué',
     chrono_25m: s.chrono || null,

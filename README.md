@@ -41,10 +41,42 @@ Ton app sera disponible à :
 ## Format JSON import
 ```json
 [
-  { "nom": "DUPONT", "prenom": "Emma", "classe": "6A" },
-  { "nom": "MARTIN", "prenom": "Lucas", "classe": "6A" }
+  {
+    "nom": "DUPONT",
+    "prenom": "Emma",
+    "date_naissance": "14/03/2013",
+    "sexe": "F",
+    "classe": "6A",
+    "note_eleve": ""
+  },
+  {
+    "nom": "MARTIN",
+    "prenom": "Lucas",
+    "date_naissance": "07/09/2012",
+    "sexe": "M",
+    "classe": "6A",
+    "note_eleve": "PAP - Dyslexie"
+  },
+  {
+    "nom": "BERNARD",
+    "prenom": "Chloé",
+    "date_naissance": "22/11/2013",
+    "sexe": "F",
+    "classe": "6A",
+    "note_eleve": "ULIS - Déficience motrice légère"
+  }
 ]
 ```
+
+### Champs disponibles
+| Champ | Obligatoire | Exemple |
+|-------|------------|---------|
+| `nom` | ✅ | "DUPONT" |
+| `prenom` | ✅ | "Emma" |
+| `date_naissance` | ✅ | "14/03/2013" |
+| `sexe` | ✅ | "F" ou "M" |
+| `classe` | ✅ | "6A" |
+| `note_eleve` | ✗ | "PAP - Dyslexie", "ULIS", "PPS", "Asthme", "" |
 
 ## Flux d'évaluation Savoir Nager
 
