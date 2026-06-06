@@ -11,165 +11,323 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Natation EPS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --navy: #0A2540;
+  --navy2: #1B3F6A;
+  --teal: #0EA5C9;
+  --teal2: #67E8F9;
+  --g1: #EF4444; --g1bg: #FEE2E2;
+  --g2: #F59E0B; --g2bg: #FEF3C7;
+  --g3: #10B981; --g3bg: #D1FAE5;
+  --pend: #8B5CF6; --pendbg: #EDE9FE;
+  --gray: #F0F6FC;
+  --mid: #4A6480;
+  --lite: #8FA8C0;
+  --warn: #FEF3C7; --warnfg: #92400E;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:#0A2540;overflow:hidden}
+
+/* ── ÉCRANS ── */
+.screen{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  background:#F0F6FC;
+  visibility:hidden;
+  pointer-events:none;
+  transition:transform .3s cubic-bezier(.4,0,.2,1),visibility .3s;
+  transform:translateX(100%);
+  overflow:hidden;
+}
+.screen.active{
+  visibility:visible;
+  pointer-events:auto;
+  transform:translateX(0);
+}
+#screen-home{background:#0A2540;transform:translateX(0);visibility:visible;pointer-events:none}
+#screen-home.active{pointer-events:auto}
+
+/* ── HOME ── */
+.home-waves{position:absolute;inset:0;overflow:hidden}
+.wave{position:absolute;width:220%;left:-60%;border-radius:45%;opacity:.07;animation:wave 9s ease-in-out infinite}
+.wave1{height:280px;bottom:-50px;background:var(--teal);animation-duration:8s}
+.wave2{height:260px;bottom:-30px;background:#fff;animation-duration:11s;animation-direction:reverse}
+@keyframes wave{0%,100%{transform:translateX(0) translateY(0)}50%{transform:translateX(4%) translateY(-12px)}}
+.home-body{position:relative;z-index:1;padding:52px 28px 48px;display:flex;flex-direction:column;align-items:flex-start;height:100%;justify-content:flex-end}
+.home-title{font-family:'Syne',sans-serif;font-size:56px;font-weight:800;color:#fff;line-height:1;letter-spacing:-1px}
+.home-title span{color:var(--teal2)}
+.home-sub{font-size:13px;color:rgba(255,255,255,.45);margin-top:10px}
+.home-btns{display:flex;flex-direction:column;gap:12px;width:100%;margin-top:32px}
+.btn-p{display:flex;align-items:center;gap:12px;background:var(--teal);color:#fff;border:none;border-radius:16px;padding:18px 22px;font-family:'DM Sans',sans-serif;font-size:17px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(14,165,201,.4);transition:transform .15s}
+.btn-p:active{transform:scale(.97)}
+.btn-s{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:18px 22px;font-family:'DM Sans',sans-serif;font-size:17px;font-weight:500;cursor:pointer;transition:transform .15s}
+.btn-s:active{transform:scale(.97)}
+.home-pills{display:flex;gap:8px;margin-top:22px}
+.pill{padding:5px 13px;border-radius:20px;font-size:12px;font-weight:600}
+.pill-on{background:rgba(14,165,201,.25);color:var(--teal2);border:1px solid rgba(14,165,201,.3)}
+.pill-off{background:rgba(255,255,255,.07);color:rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.1)}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;gap:10px;padding:14px 18px;padding-top:calc(14px + env(safe-area-inset-top));background:var(--navy);flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.hdr h2{flex:1;font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn-back{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.12);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.btn-back:active{background:rgba(255,255,255,.25)}
+.btn-ico{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.12);border:none;color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.btn-ico:active{background:rgba(255,255,255,.25)}
+
+/* ── BODY SCROLLABLE ── */
+.body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+
+/* ── ONGLETS ── */
+.tabs{display:flex;gap:6px;padding:10px 14px;background:var(--navy);overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s}
+.tab.on{background:var(--teal);border-color:var(--teal);color:#fff}
+.tc{background:rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700}
+.tc.g1{background:var(--g1)}.tc.g2{background:var(--g2)}.tc.g3{background:var(--g3)}.tc.p{background:var(--pend)}
+
+/* ── CARDS CLASSES ── */
+.cls-card{background:#fff;border-radius:14px;padding:18px;margin-bottom:10px;box-shadow:0 2px 12px rgba(10,37,64,.08);cursor:pointer;display:flex;align-items:center;gap:14px;transition:transform .15s}
+.cls-card:active{transform:scale(.98)}
+.cls-ico{width:50px;height:50px;background:linear-gradient(135deg,var(--navy),var(--navy2));border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.cls-info{flex:1}
+.cls-name{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--navy)}
+.cls-meta{font-size:12px;color:var(--mid);margin-top:2px}
+.cls-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.mbadge{padding:3px 9px;border-radius:9px;font-size:11px;font-weight:700}
+.mbadge.g1{background:var(--g1bg);color:var(--g1)}
+.mbadge.g2{background:var(--g2bg);color:#B45309}
+.mbadge.g3{background:var(--g3bg);color:var(--g3)}
+.mbadge.p{background:var(--pendbg);color:var(--pend)}
+.cls-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.btn-del{background:transparent;border:none;font-size:15px;cursor:pointer;opacity:.35;padding:4px;transition:opacity .2s}
+.btn-del:active{opacity:1}
+
+/* ── CARDS ÉLÈVES ── */
+.stu-card{background:#fff;border-radius:11px;padding:13px 14px;margin-bottom:7px;box-shadow:0 1px 6px rgba(10,37,64,.07);cursor:pointer;display:flex;align-items:center;gap:12px;border-left:4px solid transparent;transition:transform .15s}
+.stu-card:active{transform:scale(.98)}
+.stu-card.g1{border-left-color:var(--g1)}.stu-card.g2{border-left-color:var(--g2)}
+.stu-card.g3{border-left-color:var(--g3)}.stu-card.pend{border-left-color:var(--pend)}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.av1{background:var(--g1)}.av2{background:var(--g2)}.av3{background:var(--g3)}.avp{background:var(--pend)}.av0{background:var(--lite)}
+.stu-info{flex:1;min-width:0}
+.stu-name{font-weight:600;font-size:15px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stu-sub{font-size:12px;color:var(--mid);margin-top:1px}
+.gpill{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;flex-shrink:0}
+.gpill.g1{background:var(--g1bg);color:var(--g1)}.gpill.g2{background:var(--g2bg);color:#B45309}
+.gpill.g3{background:var(--g3bg);color:var(--g3)}.gpill.p{background:var(--pendbg);color:var(--pend)}
+
+/* ── IMPORT ── */
+.imp-zone{background:#fff;border:2px dashed var(--teal);border-radius:14px;padding:36px 18px;text-align:center;cursor:pointer;margin-bottom:16px;transition:background .2s}
+.imp-zone:active{background:#E0F7FA}
+.imp-fmt{background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(10,37,64,.07)}
+.fmt-title{font-size:12px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+.fmt-cols{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.fmt-col{display:flex;align-items:center;gap:5px;background:var(--gray);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:500}
+.col-r{background:var(--navy);color:#fff;border-radius:5px;padding:2px 6px;font-size:10px;font-weight:700}
+.col-o{background:var(--lite);color:#fff;border-radius:5px;padding:2px 6px;font-size:10px;font-weight:700}
+.fmt-hint{font-size:12px;color:var(--mid);line-height:1.5;margin-bottom:8px}
+.imp-prev{background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(10,37,64,.07)}
+.prev-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:13px;color:var(--mid)}
+.prev-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gray);font-size:13px}
+.prev-item:last-child{border-bottom:none}
+.note-badge{background:var(--warn);color:var(--warnfg);border-radius:7px;padding:2px 7px;font-size:11px;font-weight:600}
+
+/* ── BOUTONS GÉNÉRIQUES ── */
+.btn-ghost{background:transparent;border:1px solid var(--lite);color:var(--mid);border-radius:10px;padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;width:100%;margin-top:10px;transition:background .15s}
+.btn-ghost:active{background:var(--gray)}
+.btn-ok{background:var(--g3);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn-ok:active{opacity:.85}
+
+/* ── ALERTE HEADER ── */
+.alert-bar{background:var(--warn);color:var(--warnfg);font-size:13px;font-weight:600;padding:8px 18px;text-align:center;flex-shrink:0}
+
+/* ── ÉVAL ── */
+.steps{display:flex;gap:5px;padding:14px 18px 0}
+.step{height:4px;flex:1;border-radius:2px;background:rgba(10,37,64,.1);transition:background .3s}
+.step.done{background:var(--teal)}.step.cur{background:var(--navy)}
+.card{background:#fff;border-radius:14px;padding:18px;margin:12px 0 10px;box-shadow:0 2px 12px rgba(10,37,64,.08)}
+.card-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--navy);margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.crit{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid var(--gray);cursor:pointer}
+.crit:last-child{border-bottom:none}
+.ctog{width:28px;height:28px;border-radius:50%;border:2px solid var(--lite);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;cursor:pointer;font-size:14px}
+.ctog.ok{border-color:var(--g3);background:var(--g3);color:#fff}
+.ctog.ko{border-color:var(--g1);background:var(--g1);color:#fff}
+.clabel{font-size:14px;font-weight:500;color:var(--navy);line-height:1.4}
+.csub{font-size:12px;color:var(--mid);margin-top:2px}
+.banner{border-radius:14px;padding:18px;margin-bottom:12px;text-align:center}
+.banner.g1{background:var(--g1bg)}.banner.g2{background:var(--g2bg)}.banner.g3{background:var(--g3bg)}
+.bico{font-size:34px;margin-bottom:7px}
+.btitle{font-family:'Syne',sans-serif;font-size:19px;font-weight:700}
+.banner.g1 .btitle{color:var(--g1)}.banner.g2 .btitle{color:#B45309}.banner.g3 .btitle{color:var(--g3)}
+.bsub{font-size:13px;color:var(--mid);margin-top:5px}
+.ebtns{display:flex;flex-direction:column;gap:9px;padding-bottom:8px}
+.ebtn{background:var(--navy);color:#fff;border:none;border-radius:14px;padding:16px 20px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;text-align:center;line-height:1.4;transition:transform .15s}
+.ebtn:active{transform:scale(.97)}
+.ebtn.teal{background:var(--teal)}.ebtn.g1c{background:var(--g1)}.ebtn.g2c{background:var(--g2);color:var(--navy)}.ebtn.g3c{background:var(--g3)}.ebtn.gray{background:var(--mid)}
+.ebtn:disabled{opacity:.35;cursor:not-allowed}
+.obs-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.obs-item{background:var(--gray);border-radius:11px;padding:13px;cursor:pointer;text-align:center;border:2px solid transparent;transition:all .2s}
+.obs-item.sel{border-color:var(--teal);background:#E0F7FA}
+.obs-ico{font-size:20px;margin-bottom:5px}
+.obs-lbl{font-size:12px;font-weight:600;color:var(--navy)}
+.chrono-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 0}
+.chrono-lbl{font-size:12px;color:var(--mid);font-weight:500}
+.chrono-in{font-family:'Syne',sans-serif;font-size:46px;font-weight:700;color:var(--navy);text-align:center;border:none;border-bottom:3px solid var(--teal);background:transparent;width:160px;outline:none;letter-spacing:2px}
+.chrono-hint{font-size:12px;color:var(--lite)}
+.fiche{background:#fff;border-radius:14px;padding:14px 16px;margin:10px 0 8px;border-left:4px solid var(--teal);box-shadow:0 2px 10px rgba(10,37,64,.07)}
+.frow{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--gray);gap:10px}
+.frow:last-child{border-bottom:none}
+.flbl{font-size:11px;font-weight:600;color:var(--mid);text-transform:uppercase;letter-spacing:.4px;flex-shrink:0}
+.fval{font-size:13px;font-weight:500;color:var(--navy);text-align:right}
+.frow.warn-row{background:var(--warn);border-radius:9px;padding:7px 9px;border-bottom:none;margin-top:4px}
+.frow.warn-row .flbl{color:#B45309}.frow.warn-row .fval{color:#92400E;font-weight:600}
+
+/* ── MODAL ── */
+.modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:flex-end;justify-content:center}
+.modal.hidden{display:none}
+.m-overlay{position:absolute;inset:0;background:rgba(10,37,64,.5);backdrop-filter:blur(4px)}
+.m-box{position:relative;background:#fff;border-radius:22px 22px 0 0;padding:26px 22px calc(26px + env(safe-area-inset-bottom));width:100%;max-width:480px;box-shadow:0 -8px 40px rgba(10,37,64,.18);animation:sup .3s ease}
+.m-box p{font-size:15px;color:var(--navy);line-height:1.5;margin-bottom:18px;text-align:center}
+.m-acts{display:flex;gap:9px}
+.m-acts button{flex:1;padding:13px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;border:none}
+.btn-danger{background:var(--g1);color:#fff}
+@keyframes sup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:calc(22px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 22px;border-radius:22px;font-size:14px;font-weight:500;box-shadow:0 4px 20px rgba(10,37,64,.3);z-index:999;white-space:nowrap;animation:tin .3s ease}
+.toast.hidden{display:none}
+@keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:56px 20px;color:var(--mid)}
+.empty .eico{font-size:46px;margin-bottom:10px}
+.empty h3{font-family:'Syne',sans-serif;font-size:18px;color:var(--navy);margin-bottom:7px}
+.empty p{font-size:14px;line-height:1.6}
+.hidden{display:none!important}
+</style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- ÉCRAN ACCUEIL                              -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ HOME ══ -->
 <div id="screen-home" class="screen active">
-  <div class="home-bg">
-    <div class="wave wave-1"></div>
-    <div class="wave wave-2"></div>
-    <div class="wave wave-3"></div>
+  <div class="home-waves">
+    <div class="wave wave1"></div>
+    <div class="wave wave2"></div>
   </div>
-  <div class="home-content">
-    <div class="home-logo">
-      <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-        <circle cx="28" cy="28" r="28" fill="rgba(255,255,255,0.15)"/>
-        <path d="M10 34c3-3 6-5 9-5s6 4 9 4 6-4 9-4 6 2 9 5" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-        <path d="M10 39c3-3 6-5 9-5s6 4 9 4 6-4 9-4 6 2 9 5" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round" fill="none"/>
-        <circle cx="28" cy="20" r="5" fill="white" opacity="0.9"/>
-        <path d="M28 25v6M24 28h8" stroke="#0A2540" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </div>
+  <div class="home-body">
     <h1 class="home-title">Natation<br><span>EPS</span></h1>
-    <p class="home-subtitle">Évaluation & Groupes · Savoir Nager</p>
-
-    <div class="home-actions">
-      <button class="btn-primary" onclick="showScreen('screen-classes')">
-        <span class="btn-icon">🏊</span>
-        Mes Classes
+    <p class="home-sub">Évaluation & Groupes · Savoir Nager</p>
+    <div class="home-btns">
+      <button class="btn-p" onclick="showScreen('screen-classes')">
+        🏊 &nbsp;Mes Classes
       </button>
-      <button class="btn-secondary" onclick="showScreen('screen-import')">
-        <span class="btn-icon">📥</span>
-        Importer une Classe
+      <button class="btn-s" onclick="showScreen('screen-import')">
+        📥 &nbsp;Importer une Classe
       </button>
     </div>
-
-    <div class="home-modules">
-      <div class="module-badge active-module">Savoir Nager</div>
-      <div class="module-badge soon">Endurance</div>
-      <div class="module-badge soon">Vitesse</div>
+    <div class="home-pills">
+      <div class="pill pill-on">Savoir Nager</div>
+      <div class="pill pill-off">Endurance</div>
+      <div class="pill pill-off">Vitesse</div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- ÉCRAN IMPORT                               -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ IMPORT ══ -->
 <div id="screen-import" class="screen">
-  <div class="screen-header">
+  <div class="hdr">
     <button class="btn-back" onclick="showScreen('screen-home')">←</button>
     <h2>Importer une Classe</h2>
   </div>
-  <div class="screen-body">
-    <div class="import-zone" id="import-zone" onclick="document.getElementById('file-input').click()">
-      <div class="import-icon">📊</div>
-      <p class="import-title">Importer une liste de classe</p>
-      <p class="import-sub">Excel (.xlsx) ou Numbers (.csv) — appuyer pour sélectionner</p>
-      <input type="file" id="file-input" accept=".xlsx,.xls,.csv,.numbers" style="display:none" onchange="handleImport(event)">
+  <div class="body">
+    <div class="imp-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:38px;margin-bottom:10px">📊</div>
+      <p style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">Importer une liste de classe</p>
+      <p style="font-size:13px;color:var(--mid);margin-top:6px">Excel (.xlsx) ou CSV — Appuyer pour sélectionner</p>
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImport(event)">
     </div>
 
-    <div class="import-format">
-      <p class="format-title">Colonnes attendues dans le fichier :</p>
-      <div class="format-columns">
-        <div class="format-col"><span class="col-required">A</span><span>nom</span></div>
-        <div class="format-col"><span class="col-required">B</span><span>prenom</span></div>
-        <div class="format-col"><span class="col-required">C</span><span>date_naissance</span></div>
-        <div class="format-col"><span class="col-required">D</span><span>sexe</span></div>
-        <div class="format-col"><span class="col-required">E</span><span>classe</span></div>
-        <div class="format-col"><span class="col-optional">F</span><span>note_eleve</span></div>
+    <div class="imp-fmt">
+      <p class="fmt-title">Colonnes attendues</p>
+      <div class="fmt-cols">
+        <div class="fmt-col"><span class="col-r">A</span> nom</div>
+        <div class="fmt-col"><span class="col-r">B</span> prenom</div>
+        <div class="fmt-col"><span class="col-r">C</span> date_naissance</div>
+        <div class="fmt-col"><span class="col-r">D</span> sexe</div>
+        <div class="fmt-col"><span class="col-r">E</span> classe</div>
+        <div class="fmt-col"><span class="col-o">F</span> note_eleve</div>
       </div>
-      <p class="format-hint">La 1ère ligne doit contenir les en-têtes. Les colonnes peuvent être dans n'importe quel ordre.</p>
+      <p class="fmt-hint">1ère ligne = en-têtes. Ordre des colonnes libre.</p>
       <button class="btn-ghost" onclick="downloadSample()">📥 Télécharger un modèle Excel</button>
     </div>
 
-    <div id="import-preview" class="import-preview hidden">
-      <div class="preview-header">
-        <span id="preview-count"></span>
-        <button class="btn-confirm" onclick="confirmImport()">Confirmer l'import</button>
+    <div id="import-preview" class="imp-prev hidden">
+      <div class="prev-hdr">
+        <span id="preview-count" style="font-weight:600;color:var(--navy)"></span>
+        <button class="btn-ok" onclick="confirmImport()">Confirmer</button>
       </div>
-      <div id="preview-list" class="preview-list"></div>
+      <div id="preview-list"></div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- ÉCRAN CLASSES                              -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ CLASSES ══ -->
 <div id="screen-classes" class="screen">
-  <div class="screen-header">
+  <div class="hdr">
     <button class="btn-back" onclick="showScreen('screen-home')">←</button>
     <h2>Mes Classes</h2>
-    <button class="btn-icon-sm" onclick="showScreen('screen-import')" title="Importer">+</button>
-    <button class="btn-icon-sm" onclick="exportAll()" title="Backup complet">💾</button>
-    <button class="btn-icon-sm" onclick="showBackups()" title="Restaurer backup">↩</button>
+    <button class="btn-ico" onclick="showScreen('screen-import')" title="Importer">＋</button>
+    <button class="btn-ico" onclick="exportAll()" title="Backup">💾</button>
+    <button class="btn-ico" onclick="showBackups()" title="Restaurer">↩</button>
   </div>
-  <div class="screen-body" id="classes-list">
-    <!-- Généré dynamiquement -->
-  </div>
+  <div class="body" id="classes-list"></div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- ÉCRAN GROUPE (liste élèves d'une classe)  -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ ÉLÈVES ══ -->
 <div id="screen-group" class="screen">
-  <div class="screen-header">
+  <div class="hdr">
     <button class="btn-back" onclick="showScreen('screen-classes')">←</button>
     <h2 id="group-title">Classe</h2>
-    <button class="btn-icon-sm" onclick="exportClass()" title="Exporter">⬆</button>
+    <button class="btn-ico" onclick="exportClass()" title="Exporter">⬆</button>
   </div>
-
-  <!-- Onglets groupes -->
-  <div class="group-tabs">
-    <button class="tab-btn active" onclick="filterGroup('all')" id="tab-all">Tous <span id="count-all" class="tab-count"></span></button>
-    <button class="tab-btn" onclick="filterGroup('1')" id="tab-1">G1 <span id="count-1" class="tab-count g1"></span></button>
-    <button class="tab-btn" onclick="filterGroup('2')" id="tab-2">G2 <span id="count-2" class="tab-count g2"></span></button>
-    <button class="tab-btn" onclick="filterGroup('3')" id="tab-3">G3 <span id="count-3" class="tab-count g3"></span></button>
-    <button class="tab-btn" onclick="filterGroup('pending')" id="tab-pending">À évaluer <span id="count-pending" class="tab-count pending"></span></button>
+  <div class="tabs">
+    <button class="tab on" id="tab-all" onclick="filterGroup('all')">Tous <span id="count-all" class="tc"></span></button>
+    <button class="tab" id="tab-1" onclick="filterGroup('1')">G1 <span id="count-1" class="tc g1"></span></button>
+    <button class="tab" id="tab-2" onclick="filterGroup('2')">G2 <span id="count-2" class="tc g2"></span></button>
+    <button class="tab" id="tab-3" onclick="filterGroup('3')">G3 <span id="count-3" class="tc g3"></span></button>
+    <button class="tab" id="tab-pending" onclick="filterGroup('pending')">À évaluer <span id="count-pending" class="tc p"></span></button>
   </div>
-
-  <div class="screen-body" id="students-list">
-    <!-- Généré dynamiquement -->
-  </div>
+  <div class="body" id="students-list"></div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- ÉCRAN ÉVALUATION ÉLÈVE                    -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ ÉVAL ══ -->
 <div id="screen-eval" class="screen">
-  <div class="screen-header">
-    <button class="btn-back" id="eval-back-btn">←</button>
-    <h2 id="eval-student-name">Élève</h2>
-    <div id="eval-group-badge" class="group-badge-sm"></div>
+  <div class="hdr">
+    <button class="btn-back" id="eval-back">←</button>
+    <h2 id="eval-name">Élève</h2>
+    <div id="eval-badge" class="gpill p">À évaluer</div>
   </div>
-  <div id="eval-alert-banner" class="eval-alert-banner hidden"></div>
-  <div class="screen-body" id="eval-content">
-    <!-- Généré dynamiquement selon étape -->
-  </div>
+  <div id="eval-alert" class="alert-bar hidden"></div>
+  <div class="body" id="eval-body"></div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- MODAL CONFIRMATION                         -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ MODAL ══ -->
 <div id="modal" class="modal hidden">
-  <div class="modal-overlay" onclick="closeModal()"></div>
-  <div class="modal-box">
-    <p id="modal-message"></p>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal()">Annuler</button>
-      <button class="btn-danger" id="modal-confirm-btn">Confirmer</button>
+  <div class="m-overlay" onclick="closeModal()"></div>
+  <div class="m-box">
+    <p id="modal-msg"></p>
+    <div class="m-acts">
+      <button class="btn-ghost" style="margin-top:0" onclick="closeModal()">Annuler</button>
+      <button class="btn-danger" id="modal-ok">Confirmer</button>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- TOAST                                      -->
-<!-- ══════════════════════════════════════════ -->
+<!-- ══ TOAST ══ -->
 <div id="toast" class="toast hidden"></div>
 
 <script src="app.js"></script>
