@@ -1,74 +1,54 @@
 // ══════════════════════════════════════════════
-// NATATION EPS — APP.JS v3.0
+// EPS NATATION — APP.JS v4.0
 // ══════════════════════════════════════════════
 
 let classes    = {};
 let curClass   = null;
 let curStudent = null;
-let curFilter  = 'all';
+let curModule  = null;  // 'assn' | 'end' | 'vit'
+let modTabs    = { assn:'eleves', end:'eleves', vit:'eleves' };
 let importBuf  = [];
 let toastTmr   = null;
 
-// ── CRITÈRES SAVOIR NAGER ──
-// Référentiel officiel — Arrêté du 28 février 2022 (abroge celui du 9 juillet 2015)
-// Parcours continu SANS reprise d'appuis au bord, SANS lunettes
+// ── CRITÈRES SAVOIR NAGER — Arrêté 28/02/2022 ──
 const CRITERES_SN = [
-  { id:'c1', label:"Entrée en chute arrière",        sub:"Depuis le bord, entrer dans l'eau en chute arrière" },
-  { id:'c2', label:"Déplacement 3m50 vers obstacle", sub:"Se déplacer 3m50 en direction de l'obstacle" },
-  { id:'c3', label:"Franchir l'obstacle en immersion",sub:"Franchir l'obstacle en immersion complète sur 1m50" },
-  { id:'c4', label:"20m sur le ventre + surplace",   sub:"Nager 20m ventre · au signal : surplace vertical 15s puis reprendre" },
-  { id:'c5', label:"Demi-tour + passage dos/ventre", sub:"Demi-tour sans appui · passer de la position ventrale au dos" },
-  { id:'c6', label:"20m sur le dos + surplace",      sub:"Nager 20m dos · au signal : surplace horizontal dorsal 15s puis reprendre" },
-  { id:'c7', label:"Retour obstacle + immersion",    sub:"Se retourner ventre · franchir à nouveau l'obstacle en immersion" },
-  { id:'c8', label:"Retour au point de départ",      sub:"Se déplacer sur le ventre pour revenir au point de départ" },
-  { id:'c9', label:"Ancrage sécurisé",               sub:"S'ancrer de manière sécurisée sur un élément fixe et stable" },
+  { id:'c1', label:"Entrée en chute arrière",         sub:"Depuis le bord, entrer dans l'eau en chute arrière" },
+  { id:'c2', label:"Déplacement 3m50 vers obstacle",  sub:"Se déplacer 3m50 en direction de l'obstacle" },
+  { id:'c3', label:"Franchir l'obstacle (immersion)",  sub:"Franchir en immersion complète sur 1m50" },
+  { id:'c4', label:"20m ventre + surplace 15s",        sub:"Nager 20m ventre · au signal : surplace vertical 15s" },
+  { id:'c5', label:"Demi-tour + passage dos",          sub:"Demi-tour sans appui · passer de ventral à dorsal" },
+  { id:'c6', label:"20m dos + surplace 15s",           sub:"Nager 20m dos · au signal : surplace horizontal dorsal 15s" },
+  { id:'c7', label:"Retour + franchir obstacle",       sub:"Se retourner ventre · franchir à nouveau l'obstacle" },
+  { id:'c8', label:"Retour au point de départ",        sub:"Se déplacer ventre jusqu'au point de départ" },
+  { id:'c9', label:"Ancrage sécurisé",                 sub:"S'ancrer de manière sécurisée sur un élément fixe" },
 ];
-
-// Connaissances et attitudes (validées séparément)
 const ATTITUDES_SN = [
-  { id:'a1', label:"Identifier le surveillant",      sub:"Savoir qui alerter en cas de problème" },
-  { id:'a2', label:"Règles hygiène et sécurité",     sub:"Connaître les règles de base dans un établissement de bains" },
-  { id:'a3', label:"Identifier les environnements",  sub:"Savoir pour quels environnements le savoir-nager est adapté" },
+  { id:'a1', label:"Identifier le surveillant",   sub:"Savoir qui alerter en cas de problème" },
+  { id:'a2', label:"Règles hygiène et sécurité",  sub:"Connaître les règles de base dans un établissement de bains" },
+  { id:'a3', label:"Identifier les environnements", sub:"Savoir pour quels environnements le savoir-nager est adapté" },
 ];
 
 // ── CRITÈRES TECHNIQUES G3 ──
 const TECH_G3 = [
   { id:'plongeon',     ico:'🤽', lbl:'Plongeon',
-    niveaux:[
-      {v:2, txt:'Gainé · axe · coulée immédiate'},
-      {v:1, txt:'Entrée de côté · semi-gainé'},
-      {v:0, txt:'Plat · tête relevée · bruit impact'},
-    ]},
+    niveaux:[{v:2,txt:"Gainé · axe · coulée immédiate"},{v:1,txt:"Entrée de côté · semi-gainé"},{v:0,txt:"Plat · tête relevée · bruit impact"}]},
   { id:'coulee',       ico:'🌊', lbl:'Coulée',
-    niveaux:[
-      {v:2, txt:'Horizontal · bras tendus · ≥ 5m'},
-      {v:1, txt:'Courte 2-4m · corps désaxé'},
-      {v:0, txt:'Remontée immédiate · reprise brasse sous l\'eau'},
-    ]},
+    niveaux:[{v:2,txt:"Horizontal · bras tendus · ≥ 5m"},{v:1,txt:"Courte 2-4m · corps désaxé"},{v:0,txt:"Remontée immédiate · reprise brasse sous l'eau"}]},
   { id:'propulsion',   ico:'💪', lbl:'Propulsion (bras)',
-    niveaux:[
-      {v:2, txt:'Traction jusqu\'à la cuisse · recouvrement haut'},
-      {v:1, txt:'Traction courte (ventre) · recouvrement bas'},
-      {v:0, txt:'Bras en surface · croisé · pas de propulsion'},
-    ]},
+    niveaux:[{v:2,txt:"Traction jusqu'à la cuisse · recouvrement haut"},{v:1,txt:"Traction courte (ventre) · recouvrement bas"},{v:0,txt:"Bras en surface · croisé · pas de propulsion"}]},
   { id:'coordination', ico:'🔄', lbl:'Coordination',
-    niveaux:[
-      {v:2, txt:'6 battements/cycle · régulier · jambes continues'},
-      {v:1, txt:'Irrégulier · pauses · genoux cassés'},
-      {v:0, txt:'Jambes arrêtées · ciseau · battement brasse'},
-    ]},
+    niveaux:[{v:2,txt:"6 battements/cycle · régulier · jambes continues"},{v:1,txt:"Irrégulier · pauses · genoux cassés"},{v:0,txt:"Jambes arrêtées · ciseau · battement brasse"}]},
   { id:'equilibre',    ico:'⚖️', lbl:'Équilibre',
-    niveaux:[
-      {v:2, txt:'Bassin haut · horizontal · tête dans l\'axe'},
-      {v:1, txt:'Bassin semi-immergé · position en Z'},
-      {v:0, txt:'Vertical · jambes profondes · marche dans l\'eau'},
-    ]},
+    niveaux:[{v:2,txt:"Bassin haut · horizontal · tête dans l'axe"},{v:1,txt:"Bassin semi-immergé · position en Z"},{v:0,txt:"Vertical · jambes profondes · marche dans l'eau"}]},
   { id:'respiration',  ico:'😮‍💨', lbl:'Respiration',
-    niveaux:[
-      {v:2, txt:'Rotation latérale · expiration eau · rythmée'},
-      {v:1, txt:'Tête se soulève · rotation tardive · irrégulier'},
-      {v:0, txt:'Tête hors eau · apnée'},
-    ]},
+    niveaux:[{v:2,txt:"Rotation latérale · expiration eau · rythmée"},{v:1,txt:"Tête se soulève · rotation tardive · irrégulier"},{v:0,txt:"Tête hors eau · apnée"}]},
+];
+
+const PRESENCE_VALS = [
+  { val:'P', lbl:'Présent',     cls:'pb-p' },
+  { val:'A', lbl:'Absent',      cls:'pb-a' },
+  { val:'D', lbl:'Dispensé',    cls:'pb-d' },
+  { val:'T', lbl:'Oubli tenue', cls:'pb-t' },
 ];
 
 // ── PERSISTENCE ──────────────────────────────
@@ -76,377 +56,318 @@ function save() {
   try {
     const d = JSON.stringify(classes);
     localStorage.setItem('natation_classes', d);
-    localStorage.setItem('natation_bak_' + today(), d);
+    localStorage.setItem('natation_bak_'+today(), d);
   } catch(e) { showToast('⚠️ Stockage plein'); }
 }
 function load() {
-  try { const r = localStorage.getItem('natation_classes'); if(r) classes = JSON.parse(r); }
-  catch(e) { classes = {}; }
+  try { const r=localStorage.getItem('natation_classes'); if(r) classes=JSON.parse(r); }
+  catch(e) { classes={}; }
 }
 function today() { return new Date().toISOString().slice(0,10); }
 function fmtDate(iso) {
   if (!iso) return '';
   const [y,m,d] = iso.split('-');
+  return `${d}/${m}`;  // format court pour colonnes présences
+}
+function fmtDateLong(iso) {
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
   return `${d}/${m}/${y}`;
 }
-setInterval(() => { if(Object.keys(classes).length) save(); }, 30000);
+setInterval(()=>{ if(Object.keys(classes).length) save(); }, 30000);
 
 // ── NAVIGATION ───────────────────────────────
-function openModule(groupe) {
-  // Depuis l'accueil, naviguer directement vers le module
-  // Si une seule classe existe, l'ouvrir directement filtrée
-  const keys = Object.keys(classes);
-  if (keys.length === 1) {
-    openClass(keys[0]);
-    // Appliquer le filtre après un court délai
-    setTimeout(() => {
-      if (groupe==='1') filterGroup('1');
-      else if (groupe==='2') filterGroup('2');
-      else if (groupe==='3') filterGroup('3a');
-    }, 50);
-  } else if (keys.length === 0) {
-    showScreen('screen-import');
-  } else {
-    // Plusieurs classes → aller à la liste des classes
-    showScreen('screen-classes');
-    showToast('Sélectionne une classe');
-  }
-}
-
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.add('active');
-  if (id === 'screen-classes') renderClasses();
-  if (id === 'screen-group')   { renderStudents(); updateCounts(); }
+  if (id==='screen-classes') renderClasses();
+  if (id==='screen-home') updateHomeCounts();
 }
 
-// ── IMPORT EXCEL / CSV ───────────────────────
-const COL_ALIASES = {
-  nom:    ['nom','name','lastname','famille'],
-  prenom: ['prenom','prénom','firstname','first'],
-  ddn:    ['date_naissance','ddn','naissance','birthdate','né','birth'],
-  sexe:   ['sexe','genre','sex','gender'],
-  classe: ['classe','class','group','groupe','division','section'],
-  note:   ['note_eleve','note','remarque','besoin','observation','handicap','ulis','pap','pps'],
-};
-function normKey(s) { return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
-function detectCols(headers) {
-  const map = {};
-  headers.forEach((h,i) => {
-    const n = normKey(h);
-    Object.entries(COL_ALIASES).forEach(([f,aliases]) => {
-      if (map[f] === undefined && aliases.some(a => n.includes(a))) map[f] = i;
-    });
-  });
-  return map;
-}
-function parseDate(val) {
-  if (!val && val !== 0) return '';
-  if (typeof val === 'number' && typeof XLSX !== 'undefined') {
-    try { const d = XLSX.SSF.parse_date_code(val); if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`; } catch(e){}
-  }
-  const s = String(val).trim();
-  // Convertir JJ/MM/AAAA → AAAA-MM-JJ pour stockage ISO
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return s;
-}
-function makeStudent(d, idx) {
-  const nom = (d.nom||'').trim().toUpperCase();
-  if (!nom) return null;
-  return {
-    id: `${Date.now()}_${idx}_${Math.random().toString(36).slice(2,6)}`,
-    nom, prenom: (d.prenom||'').trim(),
-    ddn: parseDate(d.ddn_raw),
-    sexe: (d.sexe||'').trim().toUpperCase().charAt(0),
-    classe: (d.classe||'Inconnue').trim(),
-    note: (d.note||'').trim(),
-    groupe: null, sousGroupe: null,
-    etape: 0, criteres: {}, attitudes: {}, crawl: null,
-    presences: {},  // { 'AAAA-MM-JJ': 'present'|'absent'|'dispense'|'oubli_tenue' }
-    evalsTech: [],   // [{ date, scores:{plongeon,coulee,...} }]
-    chronos:   [],   // [{ date, temps }]
-  };
-}
-function handleImport(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  event.target.value = '';
-  const ext = file.name.split('.').pop().toLowerCase();
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      let headers = [], rows = [];
-      if (ext === 'csv') {
-        const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
-        const sep = lines[0].includes(';') ? ';' : ',';
-        headers = lines[0].split(sep).map(h => h.replace(/['"]/g,'').trim());
-        rows = lines.slice(1).map(l => l.split(sep).map(v => v.replace(/['"]/g,'').trim()));
-      } else {
-        if (typeof XLSX === 'undefined') { showToast('❌ Bibliothèque Excel non chargée'); return; }
-        const wb = XLSX.read(e.target.result, {type:'array', cellDates:false});
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-        if (!data.length) throw new Error('Vide');
-        headers = data[0].map(String);
-        rows = data.slice(1).filter(r => r.some(c => c !== '' && c !== null));
-      }
-      const map = detectCols(headers);
-      if (map.nom === undefined) { showToast('❌ Colonne "nom" introuvable'); return; }
-      importBuf = rows.map((r,i) => {
-        const g = f => map[f] !== undefined ? r[map[f]] : '';
-        return makeStudent({
-          nom: g('nom'), prenom: g('prenom'),
-          ddn_raw: map.ddn !== undefined ? r[map.ddn] : '',
-          sexe: g('sexe'), classe: g('classe'), note: g('note'),
-        }, i);
-      }).filter(Boolean);
-      if (!importBuf.length) { showToast('❌ Aucun élève trouvé'); return; }
-      showPreview();
-    } catch(err) { console.error(err); showToast('❌ Erreur lecture fichier'); }
-  };
-  if (ext === 'csv') reader.readAsText(file, 'UTF-8');
-  else reader.readAsArrayBuffer(file);
-}
-function showPreview() {
-  const cls = [...new Set(importBuf.map(s => s.classe))].join(', ');
-  document.getElementById('preview-count').textContent = `${importBuf.length} élève(s) · ${cls}`;
-  document.getElementById('preview-list').innerHTML =
-    importBuf.slice(0,25).map(s => `
-      <div class="prev-item">
-        ${s.sexe==='F'?'👧':s.sexe==='M'?'👦':'🧑'}
-        <span style="flex:1;font-weight:500">${s.prenom} ${s.nom}</span>
-        ${s.note ? `<span class="note-badge">⚡ ${s.note}</span>` : ''}
-        <span style="color:var(--lite)">${s.classe}</span>
-      </div>`).join('')
-    + (importBuf.length > 25 ? `<div class="prev-item" style="color:var(--lite)">…et ${importBuf.length-25} autres</div>` : '');
-  document.getElementById('import-preview').classList.remove('hidden');
-}
-function confirmImport() {
-  let added=0, skip=0;
-  importBuf.forEach(s => {
-    if (!classes[s.classe]) classes[s.classe] = [];
-    const ex = classes[s.classe].find(e => e.nom===s.nom && e.prenom===s.prenom);
-    if (!ex) { classes[s.classe].push(s); added++; } else skip++;
-  });
-  save();
-  importBuf = [];
-  document.getElementById('import-preview').classList.add('hidden');
-  showToast(`✅ ${added} élève(s) ajouté(s)${skip?` · ${skip} doublon(s) ignoré(s)`:''}`);
-  showScreen('screen-classes');
-}
-function downloadSample() {
-  if (typeof XLSX === 'undefined') { showToast('❌ Bibliothèque Excel non chargée'); return; }
-  const ws = XLSX.utils.aoa_to_sheet([
-    ['nom','prenom','date_naissance','sexe','classe','note_eleve'],
-    ['DUPONT','Emma','14/03/2013','F','6A',''],
-    ['MARTIN','Lucas','07/09/2012','M','6A','PAP - Dyslexie'],
-    ['BERNARD','Chloé','22/11/2013','F','6A','ULIS'],
-  ]);
-  ws['!cols'] = [{wch:18},{wch:14},{wch:16},{wch:6},{wch:8},{wch:30}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Classe');
-  XLSX.writeFile(wb, 'modele_classe.xlsx');
-  showToast('📥 Modèle téléchargé');
+// ── MODULES ──────────────────────────────────
+function getModuleStudents(mod) {
+  const all = Object.values(classes).flat();
+  if (mod==='assn') return all.filter(s=>s.groupe==='1'||!s.groupe);
+  if (mod==='end')  return all.filter(s=>s.groupe==='2');
+  if (mod==='vit')  return all.filter(s=>s.groupe==='3');
+  return [];
 }
 
-// ── CLASSES ──────────────────────────────────
-function renderClasses() {
-  const el = document.getElementById('classes-list');
-  const keys = Object.keys(classes).sort();
-  if (!keys.length) {
-    el.innerHTML = `<div class="empty"><div class="eico">🏊‍♀️</div><h3>Aucune classe</h3>
-      <p>Importez votre première liste.</p>
-      <button class="btn-ghost" style="margin-top:14px" onclick="showScreen('screen-import')">📥 Importer</button></div>`;
+function openModule(mod) {
+  curModule = mod;
+  modTabs[mod] = 'eleves';
+  // Réinitialiser les onglets
+  document.querySelectorAll(`[id^="${mod}-tab-"]`).forEach(t=>t.classList.remove('on'));
+  const tabEl = document.getElementById(`${mod}-tab-eleves`);
+  if (tabEl) tabEl.classList.add('on');
+  renderModuleTab(mod, 'eleves');
+  showScreen(`screen-${mod}`);
+}
+
+function switchModTab(mod, tab) {
+  modTabs[mod] = tab;
+  document.querySelectorAll(`[id^="${mod}-tab-"]`).forEach(t=>t.classList.remove('on'));
+  const tabEl = document.getElementById(`${mod}-tab-${tab}`);
+  if (tabEl) tabEl.classList.add('on');
+  renderModuleTab(mod, tab);
+}
+
+function renderModuleTab(mod, tab) {
+  const el = document.getElementById(`${mod}-body`);
+  if (!el) return;
+  if (tab==='eleves') renderModuleEleves(mod, el);
+  else if (tab==='presences') renderPresencesTable(mod, el);
+  else if (tab==='serie') renderSerie();
+}
+
+function updateHomeCounts() {
+  const all = Object.values(classes).flat();
+  const g1  = all.filter(s=>s.groupe==='1'||!s.groupe);
+  const g2  = all.filter(s=>s.groupe==='2');
+  const g3  = all.filter(s=>s.groupe==='3');
+  const g3a = g3.filter(s=>s.sousGroupe==='G3A');
+  const g3b = g3.filter(s=>s.sousGroupe==='G3B');
+
+  const elAssn = document.getElementById('mod-count-assn');
+  const elEnd  = document.getElementById('mod-count-end');
+  const elVit  = document.getElementById('mod-count-vit');
+
+  if (elAssn) elAssn.textContent = g1.length ? `${g1.length} élève${g1.length>1?'s':''} · G1` : 'Aucun élève';
+  if (elEnd)  elEnd.textContent  = g2.length ? `${g2.length} élève${g2.length>1?'s':''} · G2` : 'Aucun élève';
+  if (elVit)  elVit.textContent  = g3.length ? `${g3.length} élève${g3.length>1?'s':''} · G3A: ${g3a.length} · G3B: ${g3b.length}` : 'Aucun élève';
+}
+
+// ── ÉLÈVES PAR MODULE ─────────────────────────
+function renderModuleEleves(mod, el) {
+  const ss = getModuleStudents(mod).sort((a,b)=>a.nom.localeCompare(b.nom));
+
+  if (mod==='end') {
+    // Coming soon pour endurance
+    el.innerHTML = `
+      <div style="margin-bottom:12px">
+        ${ss.length ? ss.map(s=>renderStuCard(s, mod)).join('') :
+          '<div class="empty"><div class="eico">🏃</div><h3>Aucun élève G2</h3><p>Les élèves orientés Endurance apparaîtront ici.</p></div>'}
+      </div>
+      <div class="coming-soon" style="padding:24px;background:#fff;border-radius:14px;box-shadow:0 1px 8px rgba(10,37,64,.07)">
+        <div class="cs-ico">🔜</div>
+        <div class="cs-title">Évaluation Endurance</div>
+        <div class="cs-sub">Les critères d'évaluation spécifiques à la natation d'endurance seront disponibles dans une prochaine mise à jour.</div>
+        <span class="cs-badge">Coming Soon</span>
+      </div>`;
     return;
   }
-  el.innerHTML = keys.map(cls => {
-    const ss = classes[cls];
-    const g1=ss.filter(s=>s.groupe==='1').length;
-    const g2=ss.filter(s=>s.groupe==='2').length;
-    const g3a=ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3A').length;
-    const g3b=ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3B').length;
-    const pe=ss.filter(s=>!s.groupe).length;
-    const pct = Math.round((ss.length-pe)/ss.length*100);
-    return `<div class="cls-card" onclick="openClass('${cls}')">
-      <div class="cls-ico">🏊</div>
-      <div style="flex:1">
-        <div class="cls-name">${cls}</div>
-        <div class="cls-meta">${ss.length} élève${ss.length>1?'s':''} · ${pct}% évalué${pct>0?'s':''}</div>
-        <div class="cls-badges">
-          ${g1?`<span class="mbadge g1">G1·${g1}</span>`:''}
-          ${g2?`<span class="mbadge g2">G2·${g2}</span>`:''}
-          ${g3a?`<span class="mbadge g3a">G3A·${g3a}</span>`:''}
-          ${g3b?`<span class="mbadge g3b">G3B·${g3b}</span>`:''}
-          ${pe?`<span class="mbadge p">À évaluer·${pe}</span>`:''}
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-        <span style="color:var(--lite);font-size:20px">›</span>
-        <button onclick="event.stopPropagation();deleteClass('${cls}')"
-          style="background:transparent;border:none;font-size:15px;cursor:pointer;opacity:.35;padding:4px">🗑</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-function deleteClass(cls) {
-  showModal(`Supprimer la classe "${cls}" ?`, () => { delete classes[cls]; save(); renderClasses(); showToast(`Classe ${cls} supprimée`); });
-}
-function openClass(cls) {
-  curClass = cls; curFilter = 'all';
-  document.getElementById('group-title').textContent = cls;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
-  document.getElementById('tab-all').classList.add('on');
-  showScreen('screen-group');
-}
-
-// ── ÉLÈVES ───────────────────────────────────
-function renderStudents() {
-  if (!curClass) return;
-  const el = document.getElementById('students-list');
-  let ss = [...(classes[curClass]||[])];
-  if (curFilter==='1') ss=ss.filter(s=>s.groupe==='1');
-  else if (curFilter==='2') ss=ss.filter(s=>s.groupe==='2');
-  else if (curFilter==='3a') ss=ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3A');
-  else if (curFilter==='3b') ss=ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3B');
-  else if (curFilter==='pending') ss=ss.filter(s=>!s.groupe);
-  ss.sort((a,b)=>a.nom.localeCompare(b.nom));
 
   if (!ss.length) {
-    el.innerHTML = `<div class="empty"><div class="eico">✓</div><h3>Aucun élève ici</h3></div>`;
+    const msgs = {
+      assn: 'Les élèves non encore évalués et ceux du Groupe 1 apparaîtront ici.',
+      vit:  'Les élèves orientés Natation de Vitesse (G3A/G3B) apparaîtront ici.',
+    };
+    el.innerHTML = `<div class="empty"><div class="eico">${mod==='assn'?'🏊':'⚡'}</div>
+      <h3>Aucun élève</h3><p>${msgs[mod]||''}</p></div>`;
     return;
   }
-  el.innerHTML = ss.map(s => {
-    const {gc,avc,gl,pc} = studentStyle(s);
-    const ini = (s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase();
-    const lastTech = s.evalsTech && s.evalsTech.length ? s.evalsTech[s.evalsTech.length-1] : null;
-    const lastChrono = s.chronos && s.chronos.length ? s.chronos[s.chronos.length-1] : null;
-    const sub = s.groupe==='3'
-      ? (s.sousGroupe||'G3')+' · '+(lastTech?'Tech ×'+s.evalsTech.length:'Pas de tech')+' · '+(lastChrono?'⏱ '+lastChrono.temps+'s':'Pas de chrono')
-      : s.groupe==='2' ? 'Endurance · Nageur autonome'
-      : s.groupe==='1' ? 'Savoir Nager · Non nageur'
-      : etapeLabel(s);
-    return `<div class="stu-card ${gc}" data-sid="${s.id}">
-      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0" onclick="openStudent('${s.id}')">
-        <div class="avatar ${avc}">${ini}</div>
-        <div style="flex:1;min-width:0">
-          <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
-          <div class="stu-sub">${sub}</div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:7px;flex-shrink:0">
-        ${getPresenceBadge(s)}
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML = ss.map(s=>renderStuCard(s, mod)).join('');
 }
+
+function renderStuCard(s, mod) {
+  const {gc,avc,gl,pc} = studentStyle(s);
+  const ini = (s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase();
+  const lastTech   = s.evalsTech&&s.evalsTech.length ? s.evalsTech[s.evalsTech.length-1] : null;
+  const lastChrono = s.chronos&&s.chronos.length ? s.chronos[s.chronos.length-1] : null;
+  const sub = s.groupe==='3'
+    ? (s.sousGroupe||'G3')+' · '+(lastTech?'Tech ×'+s.evalsTech.length:'Pas de tech')+' · '+(lastChrono?'⏱ '+lastChrono.temps+'s':'Pas de chrono')
+    : s.groupe==='2' ? 'Natation d\'Endurance'
+    : s.groupe==='1' ? 'Savoir Nager · Non nageur'
+    : etapeLabel(s);
+  const onclick = `onclick="openStudent('${s.id}')"`;
+  return `<div class="stu-card ${gc}" ${onclick}>
+    <div class="avatar ${avc}">${ini}</div>
+    <div style="flex:1;min-width:0">
+      <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
+      <div class="stu-sub">${sub}</div>
+    </div>
+    <span class="gpill ${pc}">${gl}</span>
+  </div>`;
+}
+
 function studentStyle(s) {
   if (!s.groupe) return {gc:'pend',avc:'avp',gl:'À évaluer',pc:'p'};
-  if (s.groupe==='1') return {gc:'g1',avc:'av1',gl:'Savoir Nager G1',pc:'g1'};
-  if (s.groupe==='2') return {gc:'g2',avc:'av2',gl:'Endurance G2',pc:'g2'};
-  if (s.sousGroupe==='G3A') return {gc:'g3a',avc:'av3a',gl:'Vitesse G3A',pc:'g3a'};
-  return {gc:'g3b',avc:'av3b',gl:'Vitesse G3B',pc:'g3b'};
+  if (s.groupe==='1') return {gc:'g1',avc:'av1',gl:'G1 · ASSN',pc:'g1'};
+  if (s.groupe==='2') return {gc:'g2',avc:'av2',gl:'G2 · Endurance',pc:'g2'};
+  if (s.sousGroupe==='G3A') return {gc:'g3a',avc:'av3a',gl:'G3A · Vitesse',pc:'g3a'};
+  return {gc:'g3b',avc:'av3b',gl:'G3B · Vitesse',pc:'g3b'};
 }
+
 function etapeLabel(s) {
-  const nb = Object.keys(s.criteres||{}).length;
+  const nb=Object.keys(s.criteres||{}).length;
   if (s.etape===0) return 'Pas encore évalué';
-  if (s.etape===1) return `Savoir nager · ${nb}/7 critères`;
+  if (s.etape===1) return `Parcours ASSN · ${nb}/9 étapes`;
   if (s.etape===2) return 'Niveau de nage · à déterminer';
   return '';
 }
-function filterGroup(g) {
-  curFilter = g;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.getElementById(`tab-${g}`).classList.add('on');
-  renderStudents();
+
+// ── PRÉSENCES TABLE ───────────────────────────
+function renderPresencesTable(mod, el) {
+  const ss = getModuleStudents(mod).sort((a,b)=>a.nom.localeCompare(b.nom));
+
+  // Collecter toutes les dates existantes + aujourd'hui
+  const datesSet = new Set([today()]);
+  ss.forEach(s=>Object.keys(s.presences||{}).forEach(d=>datesSet.add(d)));
+  const dates = [...datesSet].sort();
+
+  if (!ss.length) {
+    el.innerHTML = `<div class="empty"><div class="eico">📋</div><h3>Aucun élève</h3></div>`;
+    return;
+  }
+
+  const PRES_CYCLE = ['','P','A','D','T'];
+
+  el.innerHTML = `
+    <p style="font-size:11px;color:var(--mid);margin-bottom:10px">
+      Appuyer sur une case pour faire défiler : <strong>—→P→A→D→T→—</strong>
+    </p>
+    <div class="pres-table-wrap">
+      <table class="pres-table">
+        <thead>
+          <tr>
+            <th class="name-col">Élève</th>
+            ${dates.map(d=>`<th>${fmtDate(d)}${d===today()?'<br><span style="font-size:9px;opacity:.7">auj.</span>':''}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${ss.map(s=>`
+            <tr>
+              <td class="name-col">${s.prenom} ${s.nom}</td>
+              ${dates.map(d=>{
+                const val=(s.presences||{})[d]||'';
+                const pv = PRESENCE_VALS.find(p=>p.val===val);
+                const cls = pv ? 'pres-btn '+pv.cls : 'pres-btn pb-empty';
+                return `<td><button class="${cls}" onclick="cyclePresence('${s.id}','${d}')">${val||'—'}</button></td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${PRESENCE_VALS.map(p=>`<span style="background:${p.cls.replace('pb-p','var(--g3abg)').replace('pb-a','var(--g1bg)').replace('pb-d','var(--g2bg)').replace('pb-t','var(--pendbg)')};padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700">${p.val} = ${p.lbl}</span>`).join('')}
+    </div>`;
 }
-function updateCounts() {
-  if (!curClass) return;
-  const ss = classes[curClass]||[];
-  document.getElementById('count-all').textContent = ss.length;
-  document.getElementById('count-1').textContent = ss.filter(s=>s.groupe==='1').length;
-  document.getElementById('count-2').textContent = ss.filter(s=>s.groupe==='2').length;
-  document.getElementById('count-3a').textContent = ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3A').length;
-  document.getElementById('count-3b').textContent = ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3B').length;
-  document.getElementById('count-pending').textContent = ss.filter(s=>!s.groupe).length;
+
+function cyclePresence(studentId, dateKey) {
+  const all = Object.values(classes).flat();
+  const s   = all.find(e=>String(e.id)===String(studentId));
+  if (!s) return;
+  if (!s.presences) s.presences={};
+
+  const CYCLE = ['','P','A','D','T'];
+  const cur   = s.presences[dateKey]||'';
+  const idx   = CYCLE.indexOf(cur);
+  const next  = CYCLE[(idx+1)%CYCLE.length];
+  if (next==='') delete s.presences[dateKey];
+  else s.presences[dateKey]=next;
+  save();
+
+  // Mise à jour visuelle sans recréer la table
+  const btn = document.querySelector(`[onclick="cyclePresence('${studentId}','${dateKey}')"]`);
+  if (btn) {
+    const pv = PRESENCE_VALS.find(p=>p.val===next);
+    btn.textContent = next||'—';
+    btn.className = 'pres-btn '+(pv?pv.cls:'pb-empty');
+  }
+}
+
+// ── EXPORT PRÉSENCES ─────────────────────────
+function exportPresences(mod) {
+  const ss = getModuleStudents(mod);
+  const datesSet = new Set();
+  ss.forEach(s=>Object.keys(s.presences||{}).forEach(d=>datesSet.add(d)));
+  const dates = [...datesSet].sort();
+  const rows = ss.map(s=>{
+    const row={nom:s.nom, prenom:s.prenom, classe:s.classe, groupe:s.sousGroupe||s.groupe||''};
+    dates.forEach(d=>{ row[fmtDateLong(d)]=(s.presences||{})[d]||''; });
+    return row;
+  });
+  dlJSON(rows, `presences_${mod}_${today()}.json`);
+  showToast('📋 Présences exportées');
 }
 
 // ── OUVRIR UN ÉLÈVE ──────────────────────────
 function openStudent(id) {
-  const ss = classes[curClass]||[];
-  curStudent = ss.find(s=>String(s.id)===String(id));
+  const all = Object.values(classes).flat();
+  curStudent = all.find(s=>String(s.id)===String(id));
   if (!curStudent) return;
-  if (curStudent.groupe==='3') { openFicheG3(); }
-  else { openEval(); }
+
+  // Trouver la classe de cet élève
+  Object.entries(classes).forEach(([cls, ss])=>{
+    if (ss.find(s=>String(s.id)===String(id))) curClass=cls;
+  });
+
+  if (curStudent.groupe==='3') openFicheG3();
+  else openEval();
 }
 
 // ══════════════════════════════════════════════
-// ÉVAL SAVOIR NAGER (G1 / G2 / G3 initial)
+// ÉVAL SAVOIR NAGER
 // ══════════════════════════════════════════════
 function openEval() {
-  document.getElementById('eval-back').onclick = () => showScreen('screen-group');
+  const s=curStudent;
+  const backMod = s.groupe==='2' ? 'end' : 'assn';
+  document.getElementById('eval-back').onclick=()=>{ openModule(backMod); };
+  // Couleur header selon module
+  document.getElementById('eval-hdr').className = 'hdr '+(s.groupe==='2'?'end':'assn');
   refreshEvalHeader();
   renderEval();
   showScreen('screen-eval');
 }
+
 function refreshEvalHeader() {
-  const s = curStudent;
-  document.getElementById('eval-name').textContent = `${s.prenom} ${s.nom}`;
-  const {pc,gl} = studentStyle(s);
-  const badge = document.getElementById('eval-badge');
-  badge.textContent = gl; badge.className = `gpill ${pc}`;
-  const alert = document.getElementById('eval-alert');
-  if (s.note) { alert.textContent='⚡ '+s.note; alert.classList.remove('hidden'); }
+  const s=curStudent;
+  document.getElementById('eval-name').textContent=`${s.prenom} ${s.nom}`;
+  const {pc,gl}=studentStyle(s);
+  const badge=document.getElementById('eval-badge');
+  badge.textContent=gl; badge.className=`gpill ${pc}`;
+  const alert=document.getElementById('eval-alert');
+  if (s.note){alert.textContent='⚡ '+s.note;alert.classList.remove('hidden');}
   else alert.classList.add('hidden');
 }
+
 function renderEval() {
-  const s = curStudent;
-  const el = document.getElementById('eval-body');
-  el.scrollTop = 0;
-  if (!s.groupe && s.etape<=1) renderStep1(el);
-  else if (!s.groupe && s.etape===2) renderStep2(el);
+  const s=curStudent;
+  const el=document.getElementById('eval-body');
+  el.scrollTop=0;
+  if (!s.groupe&&s.etape<=1) renderStep1(el);
+  else if (!s.groupe&&s.etape===2) renderStep2(el);
   else renderRecapSN(el);
 }
 
-// ── ÉTAPE 1 : 7 critères ──
 function renderStep1(el) {
-  const s = curStudent;
-  if (!s.criteres) s.criteres = {};
-  if (!s.attitudes) s.attitudes = {};
+  const s=curStudent;
+  if (!s.criteres) s.criteres={};
+  if (!s.attitudes) s.attitudes={};
+  const koCount=CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
+  const doneParcours=Object.keys(s.criteres).length;
+  const doneAttitudes=Object.keys(s.attitudes).length;
+  const allDone=doneParcours===9&&doneAttitudes===3;
+  const koAtt=ATTITUDES_SN.filter(a=>s.attitudes[a.id]===false).length;
+  const hasKo=koCount>0||koAtt>0;
 
-  const koCount   = CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
-  const doneParcours = Object.keys(s.criteres).length;
-  const doneAttitudes = Object.keys(s.attitudes).length;
-  const allDone = doneParcours===9 && doneAttitudes===3;
-  const koAttitudes = ATTITUDES_SN.filter(a=>s.attitudes[a.id]===false).length;
-  const hasKo = koCount>0 || koAttitudes>0;
-
-  el.innerHTML = `
+  el.innerHTML=`
     <div class="steps"><div class="step cur"></div><div class="step"></div></div>
-
-    <div class="eval-card" style="margin-top:12px">
-      <div class="eval-card-title">🏊 Parcours Savoir-Nager — Arrêté 2022</div>
-      <p style="font-size:12px;color:var(--mid);margin-bottom:6px">
-        Parcours continu · sans reprise d'appuis · sans lunettes
-      </p>
-      <div style="background:var(--g3bbg);border-radius:8px;padding:7px 10px;margin-bottom:12px;font-size:11px;color:var(--g3bdk);font-weight:600">
-        ℹ️ Réf. officiel — Arrêté du 28 février 2022 (MENE2129642A)
-      </div>
+    <div class="eval-card" style="margin-top:10px">
+      <div class="eval-card-title">🏊 Parcours Savoir-Nager — Arrêté 28/02/2022</div>
+      <p style="font-size:11px;color:var(--mid);margin-bottom:8px">Parcours continu · sans appuis · sans lunettes · Appuyer pour cocher</p>
       ${CRITERES_SN.map((c,i)=>{
         const v=s.criteres[c.id];
         const cls=v===true?'ok':v===false?'ko':'';
         return `<div class="crit" onclick="toggleSN('${c.id}')">
-          <div style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;
-            border-radius:50%;background:var(--navy);color:#fff;font-size:10px;font-weight:700;
-            flex-shrink:0;margin-right:2px">${i+1}</div>
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--navy);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
           <button class="ctog ${cls}" style="flex-shrink:0">${v===true?'✓':v===false?'✗':''}</button>
           <div><div class="clabel">${c.label}</div><div class="csub">${c.sub}</div></div>
         </div>`;
       }).join('')}
     </div>
-
     <div class="eval-card">
       <div class="eval-card-title">🧠 Connaissances et attitudes</div>
       ${ATTITUDES_SN.map(a=>{
@@ -458,33 +379,19 @@ function renderStep1(el) {
         </div>`;
       }).join('')}
     </div>
+    ${hasKo?`
+      <div class="banner g1"><div class="bico">⚠️</div>
+        <div class="btitle">${[koCount>0?koCount+' étape'+(koCount>1?'s':'')+' échouée'+(koCount>1?'s':''):'',koAtt>0?koAtt+' attitude'+(koAtt>1?'s':'')+' non maîtrisée'+(koAtt>1?'s':''):''].filter(Boolean).join(' · ')}</div>
+        <div class="bsub">Orientation Savoir Nager G1</div>
+      </div>
+      <div class="ebtns"><button id="btn-go-g1" class="ebtn g1c" onclick="setG1()">Valider → Savoir Nager G1</button></div>`:`
+      <div class="ebtns">
+        <button id="btn-valider-sn" class="ebtn teal" onclick="validerSN()" ${!allDone?'disabled':''}>
+          ✓ Parcours validé — Étape suivante${!allDone?('<br><small style="font-weight:400;font-size:11px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>'):''}
+        </button>
+      </div>`}`;
+}
 
-    ${hasKo ? renderBannerG1(koCount, koAttitudes) : renderBtnValiderSN(allDone, doneParcours, doneAttitudes)}
-  `;
-}
-function renderBannerG1(koCount, koAttitudes) {
-  const msg = [
-    koCount>0 ? koCount+' étape'+(koCount>1?'s':'')+' échouée'+(koCount>1?'s':'') : '',
-    koAttitudes>0 ? koAttitudes+' attitude'+(koAttitudes>1?'s':'')+' non maîtrisée'+(koAttitudes>1?'s':'') : '',
-  ].filter(Boolean).join(' · ');
-  return `<div class="banner g1"><div class="bico">⚠️</div>
-    <div class="btitle">${msg}</div>
-    <div class="bsub">Orientation Groupe 1 — Non nageur</div>
-  </div>
-  <div class="ebtns">
-    <button id="btn-go-g1" class="ebtn g1c" onclick="setG1()">Valider → Savoir Nager G1</button>
-    <div id="btn-valider-sn" style="display:none"></div>
-  </div>`;
-}
-function renderBtnValiderSN(allDone, doneParcours, doneAttitudes) {
-  const hint = !allDone ? '<br><small style="font-weight:400;font-size:12px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>' : '';
-  return `<div class="ebtns">
-    <button id="btn-valider-sn" class="ebtn teal" onclick="validerSN()" ${!allDone?'disabled':''}>
-      ✓ Parcours validé — Étape suivante${hint}
-    </button>
-    <div id="btn-go-g1" style="display:none"></div>
-  </div>`;
-}
 function toggleSN(id) {
   const s=curStudent;
   if (!s.criteres) s.criteres={};
@@ -494,6 +401,7 @@ function toggleSN(id) {
   else delete s.criteres[id];
   save(); renderEval();
 }
+
 function toggleAttitude(id) {
   const s=curStudent;
   if (!s.attitudes) s.attitudes={};
@@ -502,113 +410,90 @@ function toggleAttitude(id) {
   else if (v===true) s.attitudes[id]=false;
   else delete s.attitudes[id];
   save();
-
-  // Mise à jour visuelle SANS scroll (pas de renderEval)
-  const btn = document.querySelector('[data-att="'+id+'"]');
-  if (btn) {
-    const nv = s.attitudes[id];
-    btn.className = 'ctog' + (nv===true?' ok':nv===false?' ko':'');
-    btn.textContent = nv===true?'✓':nv===false?'✗':'';
+  // Mise à jour visuelle sans scroll
+  const btn=document.querySelector('[data-att="'+id+'"]');
+  if (btn){
+    const nv=s.attitudes[id];
+    btn.className='ctog'+(nv===true?' ok':nv===false?' ko':'');
+    btn.textContent=nv===true?'✓':nv===false?'✗':'';
   }
-
-  // Recalcul allDone pour le bouton valider
-  const doneParcours  = Object.keys(s.criteres||{}).length;
-  const doneAttitudes = Object.keys(s.attitudes||{}).length;
-  const koCount       = CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
-  const koAtt         = ATTITUDES_SN.filter(a=>s.attitudes[a.id]===false).length;
-  const allDone       = doneParcours===9 && doneAttitudes===3;
-  const hasKo         = koCount>0 || koAtt>0;
-
-  const btnValider = document.getElementById('btn-valider-sn');
-  if (btnValider) {
-    if (hasKo) {
-      btnValider.style.display='none';
-      const btnG1 = document.getElementById('btn-go-g1');
-      if (btnG1) btnG1.style.display='block';
-    } else {
-      btnValider.disabled = !allDone;
-      btnValider.innerHTML = '✓ Parcours validé — Étape suivante'
-        + (!allDone ? '<br><small style="font-weight:400;font-size:12px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>' : '');
-    }
+  const doneParcours=Object.keys(s.criteres||{}).length;
+  const doneAttitudes=Object.keys(s.attitudes||{}).length;
+  const koAtt=ATTITUDES_SN.filter(a=>s.attitudes[a.id]===false).length;
+  const koCount=CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
+  const allDone=doneParcours===9&&doneAttitudes===3;
+  const hasKo=koCount>0||koAtt>0;
+  const btnV=document.getElementById('btn-valider-sn');
+  if (btnV&&!hasKo){
+    btnV.disabled=!allDone;
+    btnV.innerHTML='✓ Parcours validé — Étape suivante'+(!allDone?('<br><small style="font-weight:400;font-size:11px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>'):'');
   }
 }
-function setG1() { curStudent.groupe='1'; curStudent.etape=99; save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Orienté Savoir Nager G1'); }
-function validerSN() { curStudent.etape=2; save(); renderEval(); }
 
+function setG1(){curStudent.groupe='1';curStudent.etape=99;save();refreshEvalHeader();renderEval();updateHomeCounts();showToast('✅ Orienté Savoir Nager G1');}
+function validerSN(){curStudent.etape=2;save();renderEval();}
 
-// ── ÉTAPE 2 : Crawl ? ──
-function renderStep2(el) {
-  el.innerHTML = `
+function renderStep2(el){
+  el.innerHTML=`
     <div class="steps"><div class="step done"></div><div class="step cur"></div></div>
-    <div class="eval-card" style="margin-top:12px">
+    <div class="eval-card" style="margin-top:10px">
       <div class="eval-card-title">🔍 Affinage — Niveau de nage</div>
-      <p style="font-size:14px;color:var(--mid);line-height:1.6;margin-bottom:18px">
-        7 critères validés.<br>Sait-il nager le <strong>crawl</strong> de façon identifiable ?
-      </p>
+      <p style="font-size:13px;color:var(--mid);line-height:1.6;margin-bottom:16px">9 étapes validées ✓<br>Sait-il nager le <strong>crawl</strong> de façon identifiable ?</p>
       <div class="ebtns">
-        <button class="ebtn teal" onclick="setCrawl(true)">✓ Oui — Crawl identifiable<br><small style="font-weight:400;font-size:12px">→ Natation de Vitesse (G3A/G3B)</small></button>
-        <button class="ebtn g2c" onclick="setCrawl(false)">✗ Non — Nage hasardeuse<br><small style="font-weight:400;font-size:12px">→ Natation d'Endurance (G2)</small></button>
-        <button class="ebtn gray" onclick="retourE1()">← Retour aux critères</button>
+        <button class="ebtn teal" onclick="setCrawl(true)">✓ Oui — Crawl identifiable<br><small style="font-weight:400;font-size:11px">→ Natation de Vitesse (G3A/G3B après éval tech)</small></button>
+        <button class="ebtn g2c" onclick="setCrawl(false)">✗ Non — Nage hasardeuse<br><small style="font-weight:400;font-size:11px">→ Natation d'Endurance (G2)</small></button>
+        <button class="ebtn gray" onclick="()=>{curStudent.etape=1;save();renderEval();}">← Retour</button>
       </div>
     </div>`;
 }
-function retourE1() { curStudent.etape=1; save(); renderEval(); }
-function setCrawl(v) {
-  if (!v) {
-    curStudent.groupe='2'; curStudent.crawl=false; curStudent.etape=99;
-    save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Orienté Endurance G2');
+
+function setCrawl(v){
+  if(!v){
+    curStudent.groupe='2';curStudent.crawl=false;curStudent.etape=99;
+    save();refreshEvalHeader();renderEval();updateHomeCounts();showToast('✅ Orienté Endurance G2');
   } else {
-    // Demander G3A ou G3B directement
     curStudent.crawl=true;
-    renderStep3(document.getElementById('eval-body'));
+    const el=document.getElementById('eval-body');
+    el.innerHTML=`
+      <div class="eval-card" style="margin-top:10px">
+        <div class="eval-card-title">⚡ Natation de Vitesse — Groupe 3</div>
+        <p style="font-size:13px;color:var(--mid);line-height:1.6;margin-bottom:16px">
+          Crawl identifiable ✓<br>L'élève est orienté en <strong>Natation de Vitesse</strong>.<br>
+          Le classement <strong>G3A / G3B</strong> sera déterminé après la première évaluation technique.
+        </p>
+        <div class="ebtns">
+          <button class="ebtn g3a" onclick="setGroupe3()">✓ Confirmer — Natation de Vitesse<br><small style="font-weight:400;font-size:11px">G3A/G3B défini après éval technique</small></button>
+          <button class="ebtn gray" onclick="curStudent.etape=2;save();renderEval()">← Retour</button>
+        </div>
+      </div>`;
   }
 }
-function renderStep3(el) {
-  // Le G3A/G3B est déterminé APRÈS l'éval technique — ici on oriente juste vers Vitesse
-  el.innerHTML = `
-    <div class="eval-card" style="margin-top:8px">
-      <div class="eval-card-title">🌊 Natation de Vitesse — Groupe 3</div>
-      <p style="font-size:14px;color:var(--mid);line-height:1.6;margin-bottom:18px">
-        Crawl identifiable ✓<br>
-        L'élève est orienté en <strong>Natation de Vitesse</strong>.<br>
-        Le classement <strong>G3A / G3B</strong> se fera après l'évaluation technique détaillée.
-      </p>
-      <div class="ebtns">
-        <button class="ebtn teal" onclick="setGroupe3()">
-          ✓ Confirmer — Natation de Vitesse<br>
-          <small style="font-weight:400;font-size:12px">G3A / G3B défini après éval technique</small>
-        </button>
-        <button class="ebtn gray" onclick="retourE1()">← Retour</button>
-      </div>
-    </div>`;
-}
-function setGroupe3() {
-  curStudent.groupe='3'; curStudent.sousGroupe='G3B'; // défaut G3B, sera affiné par éval tech
-  curStudent.etape=99;
-  if (!curStudent.evalsTech) curStudent.evalsTech=[];
-  if (!curStudent.chronos) curStudent.chronos=[];
-  save(); updateCounts(); showToast('✅ Orienté Natation de Vitesse');
+
+function setGroupe3(){
+  curStudent.groupe='3';curStudent.sousGroupe='G3B';curStudent.etape=99;
+  if(!curStudent.evalsTech) curStudent.evalsTech=[];
+  if(!curStudent.chronos) curStudent.chronos=[];
+  save();updateHomeCounts();showToast('✅ Orienté Natation de Vitesse');
   openFicheG3();
 }
 
-// ── RÉCAP SAVOIR NAGER ──
-function renderRecapSN(el) {
+function renderRecapSN(el){
   const s=curStudent;
-  const G={'1':{ico:'🚨',title:'Savoir Nager — Non nageur',desc:'Échec au parcours savoir nager officiel.',c:'g1'},
-            '2':{ico:'🏊',title:'Endurance — Nageur autonome',desc:"Crawl non identifiable. Orienté Natation d'Endurance.",c:'g2'}};
-  const g = G[s.groupe] || {ico:'🌊',title:'Groupe 3',desc:'',c:'g3a'};
+  const G={'1':{ico:'🚨',title:'Savoir Nager G1',desc:'Échec au parcours savoir-nager officiel.',c:'g1'},
+            '2':{ico:'🏃',title:'Endurance G2',desc:"Crawl non identifiable. Orienté Natation d'Endurance.",c:'g2'}};
+  const g=G[s.groupe]||{ico:'⚡',title:'Natation de Vitesse',desc:'',c:'g3a'};
   const ko=CRITERES_SN.filter(c=>s.criteres[c.id]===false);
   const ok=CRITERES_SN.filter(c=>s.criteres[c.id]===true);
   const koAtt=ATTITUDES_SN.filter(a=>(s.attitudes||{})[a.id]===false);
   const okAtt=ATTITUDES_SN.filter(a=>(s.attitudes||{})[a.id]===true);
-  el.innerHTML = `
+  el.innerHTML=`
     <div class="banner ${g.c}"><div class="bico">${g.ico}</div>
       <div class="btitle">${g.title}</div><div class="bsub">${g.desc}</div>
     </div>
-    ${ok.length?`<div class="eval-card"><div class="eval-card-title">✅ Étapes du parcours validées (${ok.length}/9)</div>
+    ${ok.length?`<div class="eval-card"><div class="eval-card-title">✅ Étapes validées (${ok.length}/9)</div>
       ${ok.map(c=>`<div class="crit"><button class="ctog ok">✓</button><div><div class="clabel">${c.label}</div></div></div>`).join('')}
     </div>`:''}
-    ${ko.length?`<div class="eval-card"><div class="eval-card-title">❌ Étapes échouées (${ko.length})</div>
+    ${ko.length?`<div class="eval-card"><div class="eval-card-title">❌ Étapes échouées</div>
       ${ko.map(c=>`<div class="crit"><button class="ctog ko">✗</button><div><div class="clabel">${c.label}</div><div class="csub">${c.sub}</div></div></div>`).join('')}
     </div>`:''}
     ${okAtt.length||koAtt.length?`<div class="eval-card"><div class="eval-card-title">🧠 Connaissances et attitudes</div>
@@ -617,75 +502,50 @@ function renderRecapSN(el) {
     </div>`:''}
     <div class="ebtns"><button class="ebtn gray" onclick="resetEvalSN()">↺ Réévaluer</button></div>`;
 }
-function resetEvalSN() {
-  showModal('Réévaluer ? Groupe et données effacés.', () => {
-    Object.assign(curStudent, {groupe:null,sousGroupe:null,etape:0,criteres:{},attitudes:{},crawl:null,evalsTech:[],chronos:[]});
-    save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('Réinitialisé');
+
+function resetEvalSN(){
+  showModal('Réévaluer ? Groupe et données effacés.',()=>{
+    Object.assign(curStudent,{groupe:null,sousGroupe:null,etape:0,criteres:{},attitudes:{},crawl:null,evalsTech:[],chronos:[]});
+    save();refreshEvalHeader();renderEval();updateHomeCounts();showToast('Réinitialisé');
   });
 }
 
 // ══════════════════════════════════════════════
-// FICHE ÉLÈVE G3 — Résumé complet
+// FICHE G3
 // ══════════════════════════════════════════════
-function openFicheG3() {
-  const s = curStudent;
-  if (!s.evalsTech) s.evalsTech=[];
-  if (!s.chronos) s.chronos=[];
-  document.getElementById('g3-name').textContent = `${s.prenom} ${s.nom}`;
-  // titre déjà mis via HTML
-  const badge = document.getElementById('g3-badge');
-  badge.textContent = s.sousGroupe||'G3';
-  badge.className = `gpill ${s.sousGroupe==='G3A'?'g3a':'g3b'}`;
-  // Afficher "Natation de Vitesse" dans le titre écran G3
-  const alert = document.getElementById('g3-alert');
-  if (s.note) { alert.textContent='⚡ '+s.note; alert.classList.remove('hidden'); }
+function openFicheG3(){
+  const s=curStudent;
+  if(!s.evalsTech) s.evalsTech=[];
+  if(!s.chronos) s.chronos=[];
+  document.getElementById('g3-name').textContent=`${s.prenom} ${s.nom}`;
+  const badge=document.getElementById('g3-badge');
+  badge.textContent=s.sousGroupe||'G3';
+  badge.className=`gpill ${s.sousGroupe==='G3A'?'g3a':'g3b'}`;
+  const alert=document.getElementById('g3-alert');
+  if(s.note){alert.textContent='⚡ '+s.note;alert.classList.remove('hidden');}
   else alert.classList.add('hidden');
   renderFicheG3();
   showScreen('screen-g3');
 }
 
-function renderFicheG3() {
-  const s = curStudent;
-  const el = document.getElementById('g3-body');
-  const evals = s.evalsTech||[];
-  const chronos = s.chronos||[];
+function renderFicheG3(){
+  const s=curStudent;
+  const el=document.getElementById('g3-body');
+  const evals=s.evalsTech||[], chronos=s.chronos||[];
+  const lastTech=evals.length?evals[evals.length-1]:null;
+  const bestChrono=chronos.length?Math.min(...chronos.map(c=>c.temps)):null;
+  const lastChrono=chronos.length?chronos[chronos.length-1]:null;
+  const progChrono=chronos.length>=2?chronos[chronos.length-2].temps-chronos[chronos.length-1].temps:null;
+  const scoreTech=lastTech?Object.values(lastTech.scores).reduce((a,b)=>a+b,0):null;
+  const progTech=evals.length>=2?Object.values(evals[evals.length-1].scores).reduce((a,b)=>a+b,0)-Object.values(evals[0].scores).reduce((a,b)=>a+b,0):null;
+  // suggest G3A/G3B
+  const suggest=scoreTech!==null?(scoreTech>=9?'G3A':'G3B'):null;
+  const showSuggest=suggest&&suggest!==s.sousGroupe;
 
-  // Calcul stats
-  const derniereTech = evals.length ? evals[evals.length-1] : null;
-  const meilleurChrono = chronos.length ? Math.min(...chronos.map(c=>c.temps)) : null;
-  const dernierChrono = chronos.length ? chronos[chronos.length-1] : null;
-  const progChrono = chronos.length>=2
-    ? chronos[chronos.length-2].temps - chronos[chronos.length-1].temps
-    : null;
-
-  // Score tech dernière éval
-  let scoreTech = null;
-  if (derniereTech) {
-    const vals = Object.values(derniereTech.scores);
-    scoreTech = vals.reduce((a,b)=>a+b,0);
-  }
-
-  // Progression technique (comparer première et dernière éval)
-  let progTech = null;
-  if (evals.length>=2) {
-    const first = Object.values(evals[0].scores).reduce((a,b)=>a+b,0);
-    const last  = Object.values(derniereTech.scores).reduce((a,b)=>a+b,0);
-    progTech = last - first;
-  }
-
-  // Afficher DDN + age
   let ageStr='';
-  if (s.ddn) {
-    const p=s.ddn.split('-');
-    if (p.length===3) {
-      const b=new Date(+p[0],+p[1]-1,+p[2]), n=new Date();
-      const a=n.getFullYear()-b.getFullYear()-(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())?1:0);
-      if (!isNaN(a)) ageStr=`${a} ans`;
-    }
-  }
+  if(s.ddn){const p=s.ddn.split('-');if(p.length===3){const b=new Date(+p[0],+p[1]-1,+p[2]),n=new Date();const a=n.getFullYear()-b.getFullYear()-(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())?1:0);if(!isNaN(a))ageStr=`${a} ans`;}}
 
-  el.innerHTML = `
-    <!-- Hero -->
+  el.innerHTML=`
     <div class="fiche-hero">
       <div class="fiche-hero-name">${s.prenom} ${s.nom}</div>
       <div class="fiche-hero-meta">Natation de Vitesse · ${s.classe}${ageStr?' · '+ageStr:''}${s.sexe?' · '+s.sexe:''}</div>
@@ -697,7 +557,13 @@ function renderFicheG3() {
       </div>
     </div>
 
-    <!-- Stats résumé -->
+    ${showSuggest?`<div style="background:${suggest==='G3A'?'var(--g3abg)':'var(--g3bbg)'};border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">${suggest==='G3A'?'🌟':'🏊'}</span>
+      <div style="flex:1"><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:${suggest==='G3A'?'var(--g3adk)':'var(--g3bdk)'}">Suggestion : ${suggest} (score ${scoreTech}/12)</div>
+      <div style="font-size:11px;color:var(--mid)">Actuellement ${s.sousGroupe}</div></div>
+      <button onclick="appliquerSuggest('${suggest}')" style="background:${suggest==='G3A'?'var(--g3a)':'var(--g3b)'};color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">Appliquer</button>
+    </div>`:''}
+
     <div class="stat-row">
       <div class="stat-box">
         <div class="stat-val">${scoreTech!==null?scoreTech+'/12':'—'}</div>
@@ -705,504 +571,368 @@ function renderFicheG3() {
         ${progTech!==null?`<div class="stat-trend">${progTech>0?'📈':progTech<0?'📉':'➡️'}</div>`:''}
       </div>
       <div class="stat-box">
-        <div class="stat-val">${meilleurChrono!==null?meilleurChrono+'s':'—'}</div>
+        <div class="stat-val">${bestChrono!==null?bestChrono+'s':'—'}</div>
         <div class="stat-lbl">Meilleur 25m</div>
-        ${dernierChrono&&meilleurChrono===dernierChrono?`<div class="stat-trend">🏆</div>`:''}
+        ${lastChrono&&bestChrono===lastChrono?`<div class="stat-trend">🏆</div>`:''}
       </div>
       <div class="stat-box">
-        <div class="stat-val">${progChrono!==null?(progChrono>0?'-'+progChrono.toFixed(2)+'s':'+'+Math.abs(progChrono).toFixed(2)+'s'):'—'}</div>
+        <div class="stat-val">${progChrono!==null?Math.abs(progChrono).toFixed(2)+'s':'—'}</div>
         <div class="stat-lbl">Évolution</div>
         ${progChrono!==null?`<div class="stat-trend">${progChrono>0?'📈':progChrono<0?'📉':'➡️'}</div>`:''}
       </div>
     </div>
 
-    <!-- Actions -->
     <div class="ebtns">
-      <button class="ebtn teal" onclick="openTechEval()">
-        📋 Nouvelle évaluation technique
-      </button>
+      <button class="ebtn teal" onclick="openTechEval()">📋 Nouvelle évaluation technique</button>
       <button class="ebtn" style="background:var(--navy2)" onclick="changeSousGroupe()">
-        ${s.sousGroupe==='G3A'?'⬇ Reclasser en Vitesse G3B':'⬆ Reclasser en Vitesse G3A'}
+        ${s.sousGroupe==='G3A'?'⬇ Reclasser en G3B':'⬆ Reclasser en G3A'}
       </button>
     </div>
 
-    <!-- Historique technique -->
-    ${evals.length ? `
-    <div class="section-title" style="margin-top:6px">📋 Évaluations techniques (${evals.length})</div>
-    ${[...evals].reverse().map((ev,i) => {
-      const total = Object.values(ev.scores).reduce((a,b)=>a+b,0);
-      const idx = evals.length-1-i;
+    ${evals.length?`<div class="section-title">📋 Évaluations techniques (${evals.length})</div>
+    ${[...evals].reverse().map((ev,i)=>{
+      const total=Object.values(ev.scores).reduce((a,b)=>a+b,0);
+      const idx=evals.length-1-i;
       return `<div class="hist-card" style="border-left-color:${idx===evals.length-1?'var(--teal)':'var(--lite)'}">
-        <div class="hist-date">
-          ${idx===evals.length-1?'🔵 Dernière · ':''}Séance ${idx+1} — ${fmtDate(ev.date)}
-          <span style="float:right;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--navy)">${total}/12</span>
-        </div>
-        ${TECH_G3.map(c => {
-          const v = ev.scores[c.id];
-          const ico = v===2?'🟢':v===1?'🟡':v===0?'🔴':'⚫';
-          const w = v===2?100:v===1?55:v===0?20:0;
-          const fillCls = v===2?'f2':v===1?'f1':'f0';
-          return `<div class="tech-row">
-            <span class="tech-ico">${c.ico}</span>
-            <span class="tech-lbl">${c.lbl}</span>
-            <div class="tech-bar"><div class="tech-fill ${fillCls}" style="width:${w}%"></div></div>
-            <span class="tech-dot">${ico}</span>
-          </div>`;
+        <div class="hist-date">Séance ${idx+1} — ${fmtDateLong(ev.date)}<span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${total}/12</span></div>
+        ${TECH_G3.map(c=>{const v=ev.scores[c.id];const w=v===2?100:v===1?55:20;const fc=v===2?'f2':v===1?'f1':'f0';const dot=v===2?'🟢':v===1?'🟡':'🔴';
+          return `<div class="tech-row"><span class="tech-ico">${c.ico}</span><span class="tech-lbl">${c.lbl}</span>
+          <div class="tech-bar"><div class="tech-fill ${fc}" style="width:${w}%"></div></div><span class="tech-dot">${dot}</span></div>`;
         }).join('')}
       </div>`;
-    }).join('')}` : `
-    <div class="eval-card" style="text-align:center;padding:24px">
-      <div style="font-size:32px;margin-bottom:8px">📋</div>
-      <p style="font-size:14px;color:var(--mid)">Pas encore d'évaluation technique.<br>Lance la première séance d'observation.</p>
-    </div>`}
+    }).join('')}`:`<div class="eval-card" style="text-align:center;padding:20px"><div style="font-size:28px;margin-bottom:6px">📋</div><p style="font-size:13px;color:var(--mid)">Pas encore d'évaluation technique.</p></div>`}
 
-    <!-- Historique chronos -->
-    ${chronos.length ? `
-    <div class="section-title" style="margin-top:6px">⏱ Chronos 25m NL (${chronos.length})</div>
-    ${[...chronos].reverse().map((ch,i) => {
-      const idx = chronos.length-1-i;
-      const prev = idx>0 ? chronos[idx-1].temps : null;
-      const diff = prev!==null ? prev-ch.temps : null;
-      const trend = diff===null?'':diff>0?'📈':diff<0?'📉':'➡️';
-      const isBest = ch.temps === meilleurChrono;
+    ${chronos.length?`<div class="section-title">⏱ Chronos 25m NL (${chronos.length})</div>
+    ${[...chronos].reverse().map((ch,i)=>{
+      const idx=chronos.length-1-i;
+      const prev=idx>0?chronos[idx-1].temps:null;
+      const diff=prev!==null?prev-ch.temps:null;
+      const isBest=ch.temps===bestChrono;
       return `<div class="chrono-hist-card">
         <div class="chrono-num">Chrono ${idx+1}</div>
-        <div>
-          <div class="chrono-val">${ch.temps}<span style="font-size:14px;font-weight:400;color:var(--mid)">s</span>
-            ${isBest?'<span style="font-size:14px;margin-left:4px">🏆</span>':''}
-          </div>
-          <div class="chrono-date">${fmtDate(ch.date)}</div>
-        </div>
-        <div class="chrono-trend">${trend}</div>
-        ${diff!==null?`<div style="font-size:12px;font-weight:600;color:${diff>0?'var(--g3adk)':diff<0?'var(--g1dk)':'var(--mid)'}">
-          ${diff>0?'-'+diff.toFixed(2)+'s':'+'+Math.abs(diff).toFixed(2)+'s'}
-        </div>`:''}
+        <div><div class="chrono-val">${ch.temps}<span style="font-size:13px;font-weight:400;color:var(--mid)">s</span>${isBest?' 🏆':''}</div>
+        <div class="chrono-date">${fmtDateLong(ch.date)}</div></div>
+        <div class="chrono-trend">${diff===null?'':diff>0?'📈':diff<0?'📉':'➡️'}</div>
+        ${diff!==null?`<div style="font-size:11px;font-weight:600;color:${diff>0?'var(--g3adk)':diff<0?'var(--g1dk)':'var(--mid)'}">${diff>0?'-':'+'}${Math.abs(diff).toFixed(2)}s</div>`:''}
       </div>`;
-    }).join('')}` : `
-    <div class="eval-card" style="text-align:center;padding:24px">
-      <div style="font-size:32px;margin-bottom:8px">⏱</div>
-      <p style="font-size:14px;color:var(--mid)">Pas encore de chrono.<br>Utilise le bouton 🏁 Série depuis la liste.</p>
-    </div>`}
-  `;
+    }).join('')}`:`<div class="eval-card" style="text-align:center;padding:20px"><div style="font-size:28px;margin-bottom:6px">⏱</div><p style="font-size:13px;color:var(--mid)">Pas encore de chrono. Utilise le bouton 🏁 Série.</p></div>`}
+
+    <div class="ebtns" style="margin-top:4px">
+      <button class="ebtn gray" onclick="resetEvalG3()">↺ Réévaluer cet élève</button>
+    </div>`;
 }
 
-function changeSousGroupe() {
-  const sg = curStudent.sousGroupe==='G3A' ? 'G3B' : 'G3A';
-  showModal(`Reclasser ${curStudent.prenom} en ${sg} ?`, () => {
-    curStudent.sousGroupe = sg;
-    save(); openFicheG3(); showToast(`✅ Reclassé en ${sg}`);
+function appliquerSuggest(sg){
+  curStudent.sousGroupe=sg;save();renderFicheG3();showToast('✅ Reclassé en '+sg);
+}
+function changeSousGroupe(){
+  const sg=curStudent.sousGroupe==='G3A'?'G3B':'G3A';
+  showModal('Reclasser en '+sg+' ?',()=>{curStudent.sousGroupe=sg;save();openFicheG3();showToast('✅ Reclassé en '+sg);});
+}
+function resetEvalG3(){
+  showModal('Réévaluer ? Groupe et données effacés.',()=>{
+    Object.assign(curStudent,{groupe:null,sousGroupe:null,etape:0,criteres:{},attitudes:{},crawl:null,evalsTech:[],chronos:[]});
+    save();updateHomeCounts();openModule('assn');showToast('Réinitialisé');
   });
 }
 
 // ══════════════════════════════════════════════
-// ÉVALUATION TECHNIQUE G3
+// ÉVAL TECHNIQUE G3
 // ══════════════════════════════════════════════
-let currentTechScores = {};
+let currentTechScores={};
 
-function openTechEval() {
-  currentTechScores = {};
+function openTechEval(){
+  currentTechScores={};
+  document.getElementById('tech-name').textContent=`${curStudent.prenom} ${curStudent.nom}`;
   renderTechEval();
   showScreen('screen-tech');
-  document.getElementById('tech-name').textContent = `${curStudent.prenom} ${curStudent.nom}`;
 }
 
-function renderTechEval() {
-  const el = document.getElementById('tech-body');
-  const filled = Object.keys(currentTechScores).length;
-  const total  = Object.values(currentTechScores).reduce((a,b)=>a+b,0);
-  const suggest = filled===6 ? (total>=9?'G3A':'G3B') : null;
+function renderTechEval(){
+  const el=document.getElementById('tech-body');
+  const filled=Object.keys(currentTechScores).length;
+  const total=Object.values(currentTechScores).reduce((a,b)=>a+b,0);
+  const suggest=filled===6?(total>=9?'G3A':'G3B'):null;
 
-  el.innerHTML = `
+  el.innerHTML=`
     <div class="eval-card" style="margin-top:8px">
       <div class="eval-card-title">👁 Observation 50m NL souple</div>
-      <p style="font-size:12px;color:var(--mid);margin-bottom:14px">Sélectionner le comportement observé</p>
-      ${TECH_G3.map(c => {
-        const val = currentTechScores[c.id];
+      <p style="font-size:11px;color:var(--mid);margin-bottom:12px">Sélectionner le comportement observé</p>
+      ${TECH_G3.map(c=>{
+        const val=currentTechScores[c.id];
         return `<div class="crit-block">
           <div class="crit-name">${c.ico} ${c.lbl}</div>
           <div class="crit-btns">
-            ${c.niveaux.map(n => {
-              const sel = val===n.v;
-              const selCls = sel ? `sel-${n.v}` : '';
-              const ico = n.v===2?'🟢':n.v===1?'🟡':'🔴';
-              return `<button class="crit-btn ${selCls}"
-                data-crit="${c.id}" data-val="${n.v}"
-                onclick="selectTechCrit('${c.id}',${n.v})">
-                ${ico} ${n.txt}
+            ${c.niveaux.map(n=>{
+              const sel=val===n.v;
+              return `<button class="crit-btn${sel?' sel-'+n.v:''}" data-crit="${c.id}" data-val="${n.v}" onclick="selectTechCrit('${c.id}',${n.v})">
+                ${n.v===2?'🟢':n.v===1?'🟡':'🔴'} ${n.txt}
               </button>`;
             }).join('')}
           </div>
         </div>`;
       }).join('')}
     </div>
-
-    <!-- Suggestion -->
-    <div id="tech-suggest" style="display:${filled>0?'flex':'none'};background:${suggest?suggest==='G3A'?'var(--g3abg)':'var(--g3bbg)':'var(--gray)'};
-      border-radius:12px;padding:13px 15px;margin-bottom:12px;align-items:center;gap:10px">
-      <span style="font-size:22px">${suggest?suggest==='G3A'?'🌟':'🏊':'📊'}</span>
+    <div id="tech-suggest" style="display:${filled>0?'flex':'none'};background:${suggest?suggest==='G3A'?'var(--g3abg)':'var(--g3bbg)':'var(--gray)'};border-radius:10px;padding:11px 14px;margin-bottom:10px;align-items:center;gap:10px">
+      <span style="font-size:20px">${suggest?suggest==='G3A'?'🌟':'🏊':'📊'}</span>
       <div>
-        <div id="tech-suggest-label" style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;
-          color:${suggest?suggest==='G3A'?'var(--g3adk)':'var(--g3bdk)':'var(--mid)'}">
+        <div id="ts-label" style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:${suggest?suggest==='G3A'?'var(--g3adk)':'var(--g3bdk)':'var(--mid)'}">
           ${suggest?'Suggestion : '+suggest:filled+'/6 critères'}
         </div>
-        <div id="tech-suggest-score" style="font-size:12px;color:var(--mid)">
-          ${suggest?'Score '+total+'/12':''}
-        </div>
+        <div id="ts-score" style="font-size:11px;color:var(--mid)">${suggest?'Score '+total+'/12':''}</div>
       </div>
     </div>
-
-    <!-- Valider -->
     <div class="ebtns">
       <button class="ebtn teal" onclick="validerTechEval()" ${filled<6?'disabled':''}>
-        ✅ Enregistrer l'évaluation${filled<6?`<br><small style="font-weight:400;font-size:12px">${filled}/6 critères observés</small>`:''}
+        ✅ Enregistrer l'évaluation${filled<6?('<br><small style="font-weight:400;font-size:11px">'+filled+'/6 critères observés</small>'):''}
       </button>
       <button class="ebtn gray" onclick="showScreen('screen-g3')">← Retour</button>
     </div>`;
 }
 
-function selectTechCrit(critId, val) {
-  currentTechScores[critId] = val;
-
-  // Mise à jour visuelle sans scroll
-  document.querySelectorAll(`[data-crit="${critId}"]`).forEach(btn => {
-    const bval = parseInt(btn.dataset.val);
-    const sel  = bval===val;
+function selectTechCrit(critId,val){
+  currentTechScores[critId]=val;
+  document.querySelectorAll('[data-crit="'+critId+'"]').forEach(btn=>{
+    const bval=parseInt(btn.dataset.val);
     btn.classList.remove('sel-0','sel-1','sel-2');
-    if (sel) btn.classList.add(`sel-${bval}`);
+    if(bval===val) btn.classList.add('sel-'+bval);
   });
-
-  // Mise à jour suggestion
-  const filled = Object.keys(currentTechScores).length;
-  const total  = Object.values(currentTechScores).reduce((a,b)=>a+b,0);
-  const suggest = filled===6 ? (total>=9?'G3A':'G3B') : null;
-  const box = document.getElementById('tech-suggest');
-  const lbl = document.getElementById('tech-suggest-label');
-  const scr = document.getElementById('tech-suggest-score');
-  if (box) {
-    box.style.display = filled>0 ? 'flex' : 'none';
-    box.style.background = suggest ? (suggest==='G3A'?'var(--g3abg)':'var(--g3bbg)') : 'var(--gray)';
-    if (lbl) { lbl.textContent = suggest ? 'Suggestion : '+suggest : filled+'/6 critères';
-      lbl.style.color = suggest ? (suggest==='G3A'?'var(--g3adk)':'var(--g3bdk)') : 'var(--mid)'; }
-    if (scr) scr.textContent = suggest ? 'Score '+total+'/12' : '';
+  const filled=Object.keys(currentTechScores).length;
+  const total=Object.values(currentTechScores).reduce((a,b)=>a+b,0);
+  const suggest=filled===6?(total>=9?'G3A':'G3B'):null;
+  const box=document.getElementById('tech-suggest');
+  const lbl=document.getElementById('ts-label');
+  const scr=document.getElementById('ts-score');
+  if(box){
+    box.style.display=filled>0?'flex':'none';
+    box.style.background=suggest?(suggest==='G3A'?'var(--g3abg)':'var(--g3bbg)'):'var(--gray)';
+    if(lbl){lbl.textContent=suggest?'Suggestion : '+suggest:filled+'/6 critères';lbl.style.color=suggest?(suggest==='G3A'?'var(--g3adk)':'var(--g3bdk)'):'var(--mid)';}
+    if(scr) scr.textContent=suggest?'Score '+total+'/12':'';
   }
-
-  // Activer/désactiver bouton valider
-  const btn = document.querySelector('#tech-body .ebtn.teal');
-  if (btn) btn.disabled = filled<6;
+  const btn=document.querySelector('#tech-body .ebtn.teal');
+  if(btn) btn.disabled=filled<6;
 }
 
-function validerTechEval() {
-  if (Object.keys(currentTechScores).length < 6) { showToast('⚠️ 6 critères requis'); return; }
-  if (!curStudent.evalsTech) curStudent.evalsTech=[];
-  curStudent.evalsTech.push({ date: today(), scores: {...currentTechScores} });
-  // Classement auto G3A/G3B selon score technique
-  const total = Object.values(currentTechScores).reduce((a,b)=>a+b,0);
-  const sgSuggere = total >= 9 ? 'G3A' : 'G3B';
-  const sgActuel  = curStudent.sousGroupe;
-  if (!sgActuel || sgActuel !== sgSuggere) {
-    // Proposer le reclassement si différent
-    curStudent._techSuggest = sgSuggere;
-  }
-  save();
-  showToast('✅ Évaluation technique enregistrée');
+function validerTechEval(){
+  if(Object.keys(currentTechScores).length<6){showToast('⚠️ 6 critères requis');return;}
+  if(!curStudent.evalsTech) curStudent.evalsTech=[];
+  curStudent.evalsTech.push({date:today(),scores:{...currentTechScores}});
+  const total=Object.values(currentTechScores).reduce((a,b)=>a+b,0);
+  curStudent._techSuggest=total>=9?'G3A':'G3B';
+  save();showToast('✅ Évaluation technique enregistrée');
   openFicheG3();
 }
 
 // ══════════════════════════════════════════════
-// MODE SÉRIE CHRONO
+// SÉRIE CHRONO
 // ══════════════════════════════════════════════
-let serie = {
-  running: false, startMs: 0, elapsed: 0,
-  timer: null, selectedIds: [], temps: {}
-};
+let serie={running:false,startMs:0,elapsed:0,timer:null,selectedIds:[],temps:{}};
 
-function openSerie() {
-  serie.selectedIds = curStudent && curStudent.groupe==='3' ? [curStudent.id] : [];
-  serie.temps = {}; serie.running = false; serie.elapsed = 0;
+function openSerie(){
+  serie.selectedIds=curStudent&&curStudent.groupe==='3'?[curStudent.id]:[];
+  serie.temps={};serie.running=false;serie.elapsed=0;
   clearInterval(serie.timer);
   renderSerie();
   showScreen('screen-serie');
 }
+function closeSerie(){clearInterval(serie.timer);serie.running=false;showScreen('screen-vit');}
 
-function closeSerie() {
-  clearInterval(serie.timer);
-  serie.running = false;
-  showScreen('screen-group');
-}
+function renderSerie(){
+  const el=document.getElementById('serie-body');
+  const all=Object.values(classes).flat();
+  const ss=all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
 
-function renderSerie() {
-  const el = document.getElementById('serie-body');
-  const ss = (classes[curClass]||[]).filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
-
-  el.innerHTML = `
-    <!-- Chrono -->
-    <div class="card" style="text-align:center;padding:20px 16px">
+  el.innerHTML=`
+    <div class="card" style="text-align:center;padding:18px 14px">
       <div id="serie-time" class="serie-chrono-big ${serie.running?'running':''}">${fmtTime(serie.elapsed)}</div>
-      <div style="display:flex;gap:10px;margin-top:14px">
-        <button id="btn-chrono-start" onclick="toggleChrono()"
-          style="flex:1;background:${serie.running?'var(--g1)':'var(--g3a)'};color:#fff;border:none;
-          border-radius:12px;padding:16px;font-family:'DM Sans',sans-serif;font-size:18px;font-weight:700;cursor:pointer">
-          ${serie.running?'⏹ Stop':'▶ Go'}
-        </button>
-        <button onclick="resetSerie()"
-          style="background:var(--gray);color:var(--mid);border:none;border-radius:12px;
-          padding:16px 20px;font-size:18px;cursor:pointer">↺</button>
+      <div style="display:flex;gap:9px;margin-top:12px">
+        <button id="btn-start" onclick="toggleChrono()" style="flex:1;background:${serie.running?'var(--g1)':'var(--g3a)'};color:#fff;border:none;border-radius:10px;padding:14px;font-family:'DM Sans',sans-serif;font-size:17px;font-weight:700;cursor:pointer">${serie.running?'⏹ Stop':'▶ Go'}</button>
+        <button onclick="resetSerie()" style="background:var(--gray);color:var(--mid);border:none;border-radius:10px;padding:14px 18px;font-size:17px;cursor:pointer">↺</button>
       </div>
     </div>
-
-    <!-- Élèves -->
     <div class="card">
-      <div class="eval-card-title">🏊 Sélectionner les nageurs <span style="font-size:12px;font-weight:400;color:var(--mid)">(1-4 élèves)</span></div>
-      ${ss.length===0 ? '<p style="font-size:13px;color:var(--mid)">Aucun élève G3 dans cette classe.</p>' :
-        ss.map(s => {
-          const sel = serie.selectedIds.includes(s.id);
-          const t   = serie.temps[s.id];
-          return `<div class="serie-eleve-row">
-            <button class="serie-check ${sel?'sel':''}" onclick="toggleSerieEleve('${s.id}')">${sel?'✓':''}</button>
-            <div style="flex:1">
-              <div style="font-size:14px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
-              <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'}</div>
-            </div>
-            ${sel ? `
-              ${t ? `<span class="serie-temps-badge">${t}s</span>` : ''}
-              <button class="btn-arrivee ${t?'done':''}" onclick="captureTps('${s.id}')">
-                ${t?'✓ '+t+'s':'🏁 Arrivée'}
-              </button>` : ''}
-          </div>`;
-        }).join('')}
+      <div class="eval-card-title">🏊 Sélectionner les nageurs <span style="font-size:11px;font-weight:400;color:var(--mid)">(1-4)</span></div>
+      ${ss.length===0?'<p style="font-size:13px;color:var(--mid)">Aucun élève G3.</p>':ss.map(s=>{
+        const sel=serie.selectedIds.includes(s.id);
+        const t=serie.temps[s.id];
+        return `<div class="serie-eleve-row">
+          <button class="serie-check ${sel?'sel':''}" onclick="toggleSerieEleve('${s.id}')">${sel?'✓':''}</button>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
+          <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'}</div></div>
+          ${sel?`${t?`<span class="serie-temps-badge">${t}s</span>`:''}
+          <button class="btn-arrivee ${t?'done':''}" onclick="captureTps('${s.id}')">${t?'✓ '+t+'s':'🏁 Arrivée'}</button>`:''}
+        </div>`;
+      }).join('')}
     </div>
-
-    <!-- Valider -->
-    ${Object.keys(serie.temps).length>0 ? `
+    ${Object.keys(serie.temps).length>0?`
     <div class="ebtns">
-      <button class="ebtn g3a" onclick="validerTemps()">
-        ✅ Enregistrer ${Object.keys(serie.temps).length} temps dans les fiches
-      </button>
-    </div>` : ''}`;
+      <button class="ebtn g3a" onclick="validerTemps()">✅ Enregistrer ${Object.keys(serie.temps).length} temps</button>
+    </div>`:''}`;
 }
 
-function toggleSerieEleve(id) {
-  const idx = serie.selectedIds.indexOf(id);
-  if (idx>=0) { serie.selectedIds.splice(idx,1); delete serie.temps[id]; }
-  else {
-    if (serie.selectedIds.length>=4) { showToast('Maximum 4 élèves par série'); return; }
-    serie.selectedIds.push(id);
-  }
+function toggleSerieEleve(id){
+  const idx=serie.selectedIds.indexOf(id);
+  if(idx>=0){serie.selectedIds.splice(idx,1);delete serie.temps[id];}
+  else{if(serie.selectedIds.length>=4){showToast('Maximum 4 élèves');return;}serie.selectedIds.push(id);}
   renderSerie();
 }
-
-function toggleChrono() {
-  if (serie.running) {
-    clearInterval(serie.timer); serie.running=false;
-  } else {
-    serie.startMs = Date.now() - serie.elapsed*1000; serie.running=true;
-    serie.timer = setInterval(()=>{
-      serie.elapsed = (Date.now()-serie.startMs)/1000;
-      const el=document.getElementById('serie-time');
-      if (el) { el.textContent=fmtTime(serie.elapsed); el.classList.add('running'); }
-    }, 50);
-  }
-  const btn=document.getElementById('btn-chrono-start');
-  if (btn) { btn.textContent=serie.running?'⏹ Stop':'▶ Go'; btn.style.background=serie.running?'var(--g1)':'var(--g3a)'; }
+function toggleChrono(){
+  if(serie.running){clearInterval(serie.timer);serie.running=false;}
+  else{serie.startMs=Date.now()-serie.elapsed*1000;serie.running=true;
+    serie.timer=setInterval(()=>{serie.elapsed=(Date.now()-serie.startMs)/1000;
+      const el=document.getElementById('serie-time');if(el){el.textContent=fmtTime(serie.elapsed);el.classList.add('running');}},50);}
+  const btn=document.getElementById('btn-start');
+  if(btn){btn.textContent=serie.running?'⏹ Stop':'▶ Go';btn.style.background=serie.running?'var(--g1)':'var(--g3a)';}
 }
-
-function captureTps(id) {
-  const t = Math.round(serie.elapsed*100)/100;
-  serie.temps[id] = t;
-  renderSerie();
-}
-
-function resetSerie() {
-  clearInterval(serie.timer); serie.running=false; serie.elapsed=0; serie.temps={};
-  const el=document.getElementById('serie-time');
-  if (el) { el.textContent=fmtTime(0); el.classList.remove('running'); }
-  const btn=document.getElementById('btn-chrono-start');
-  if (btn) { btn.textContent='▶ Go'; btn.style.background='var(--g3a)'; }
-  renderSerie();
-}
-
-function validerTemps() {
+function captureTps(id){serie.temps[id]=Math.round(serie.elapsed*100)/100;renderSerie();}
+function resetSerie(){clearInterval(serie.timer);serie.running=false;serie.elapsed=0;serie.temps={};
+  const el=document.getElementById('serie-time');if(el){el.textContent=fmtTime(0);el.classList.remove('running');}
+  const btn=document.getElementById('btn-start');if(btn){btn.textContent='▶ Go';btn.style.background='var(--g3a)';}
+  renderSerie();}
+function validerTemps(){
+  const all=Object.values(classes).flat();
   let count=0;
-  const dateAuj = today();
-  Object.entries(serie.temps).forEach(([id,t]) => {
-    const eleve = (classes[curClass]||[]).find(s=>String(s.id)===String(id));
-    if (eleve) {
-      if (!eleve.chronos) eleve.chronos=[];
-      eleve.chronos.push({date:dateAuj, temps:t});
-      count++;
-    }
+  Object.entries(serie.temps).forEach(([id,t])=>{
+    const e=all.find(s=>String(s.id)===String(id));
+    if(e){if(!e.chronos)e.chronos=[];e.chronos.push({date:today(),temps:t});count++;}
   });
-  save(); updateCounts();
-  showToast(`✅ ${count} temps enregistré${count>1?'s':''}`);
-  serie.temps={};
-  renderSerie();
+  save();showToast('✅ '+count+' temps enregistré'+(count>1?'s':''));
+  serie.temps={};renderSerie();
 }
+function fmtTime(s){const sec=s%60,min=Math.floor(s/60);return min>0?`${min}:${sec.toFixed(2).padStart(5,'0')}`:sec.toFixed(2).padStart(5,'0');}
 
-function fmtTime(s) {
-  const sec = s%60;
-  const min = Math.floor(s/60);
-  return min>0 ? `${min}:${sec.toFixed(2).padStart(5,'0')}` : sec.toFixed(2).padStart(5,'0');
-}
-
-
-// ══════════════════════════════════════════════
-// PRÉSENCES
-// ══════════════════════════════════════════════
-const PRESENCE_OPTS = [
-  { val:'present',      ico:'✅', lbl:'Présent',      bg:'var(--g3abg)', fg:'var(--g3adk)' },
-  { val:'absent',       ico:'❌', lbl:'Absent',       bg:'var(--g1bg)',  fg:'var(--g1dk)'  },
-  { val:'dispense',     ico:'🩺', lbl:'Dispensé',     bg:'var(--g2bg)',  fg:'var(--g2dk)'  },
-  { val:'oubli_tenue',  ico:'👕', lbl:'Oubli tenue',  bg:'var(--pendbg)',fg:'var(--penddk)'},
-];
-
-function setPresence(studentId, val) {
-  const ss = classes[curClass]||[];
-  const eleve = ss.find(s=>String(s.id)===String(studentId));
-  if (!eleve) return;
-  if (!eleve.presences) eleve.presences={};
-  const dateKey = today();
-  if (eleve.presences[dateKey]===val) {
-    delete eleve.presences[dateKey]; // décocher si même valeur
-  } else {
-    eleve.presences[dateKey] = val;
+// ── CLASSES (gestion) ─────────────────────────
+function renderClasses(){
+  const el=document.getElementById('classes-list');
+  const keys=Object.keys(classes).sort();
+  if(!keys.length){
+    el.innerHTML=`<div class="empty"><div class="eico">🗂</div><h3>Aucune classe</h3><p>Importez votre première liste.</p>
+      <button class="btn-ghost" style="margin-top:12px" onclick="showScreen('screen-import')">📥 Importer</button></div>`;
+    return;
   }
-  save();
-
-  // Mise à jour visuelle sans scroll
-  const row = document.querySelector('[data-sid="'+studentId+'"]');
-  if (!row) return;
-  const opt = PRESENCE_OPTS.find(o=>o.val===eleve.presences[dateKey]);
-  const presEl = row.querySelector('.pres-badge');
-  if (presEl) {
-    if (opt) {
-      presEl.textContent = opt.ico+' '+opt.lbl;
-      presEl.style.background = opt.bg;
-      presEl.style.color = opt.fg;
-    } else {
-      presEl.textContent = '— Marquer';
-      presEl.style.background = 'var(--gray)';
-      presEl.style.color = 'var(--mid)';
-    }
-  }
-  // Mettre à jour le menu dropdown
-  const menu = document.querySelector('[data-menu="'+studentId+'"]');
-  if (menu) {
-    PRESENCE_OPTS.forEach(o => {
-      const btn = menu.querySelector('[data-pval="'+o.val+'"]');
-      if (btn) btn.style.fontWeight = (eleve.presences[dateKey]===o.val)?'700':'400';
-    });
-  }
+  el.innerHTML=keys.map(cls=>{
+    const ss=classes[cls];
+    const g1=ss.filter(s=>s.groupe==='1').length,g2=ss.filter(s=>s.groupe==='2').length;
+    const g3a=ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3A').length;
+    const g3b=ss.filter(s=>s.groupe==='3'&&s.sousGroupe==='G3B').length;
+    const pe=ss.filter(s=>!s.groupe).length;
+    return `<div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="openClasseDetail('${cls}')">
+      <div style="width:40px;height:40px;background:linear-gradient(135deg,var(--navy),var(--navy2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏊</div>
+      <div style="flex:1">
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">${cls}</div>
+        <div style="font-size:11px;color:var(--mid);margin-top:2px">${ss.length} élève${ss.length>1?'s':''}</div>
+        <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
+          ${g1?`<span style="background:var(--g1bg);color:var(--g1dk);padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">G1·${g1}</span>`:''}
+          ${g2?`<span style="background:var(--g2bg);color:var(--g2dk);padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">G2·${g2}</span>`:''}
+          ${g3a?`<span style="background:var(--g3abg);color:var(--g3adk);padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">G3A·${g3a}</span>`:''}
+          ${g3b?`<span style="background:var(--g3bbg);color:var(--g3bdk);padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">G3B·${g3b}</span>`:''}
+          ${pe?`<span style="background:var(--pendbg);color:var(--penddk);padding:1px 7px;border-radius:6px;font-size:10px;font-weight:700">À évaluer·${pe}</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+        <span style="color:var(--lite);font-size:18px">›</span>
+        <button onclick="event.stopPropagation();deleteClass('${cls}')" style="background:transparent;border:none;font-size:14px;cursor:pointer;opacity:.35">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function togglePresenceMenu(studentId) {
-  // Fermer tous les menus ouverts
-  document.querySelectorAll('.pres-menu').forEach(m => {
-    if (m.dataset.menu !== studentId) m.style.display='none';
-  });
-  const menu = document.querySelector('[data-menu="'+studentId+'"]');
-  if (menu) menu.style.display = menu.style.display==='block' ? 'none' : 'block';
+function openClasseDetail(cls) {
+  // Ouvrir directement le module ASSN avec cette classe comme contexte
+  curClass = cls;
+  openModule('assn');
 }
 
-// Fermer les menus si on clique ailleurs
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.pres-wrap')) {
-    document.querySelectorAll('.pres-menu').forEach(m=>m.style.display='none');
-  }
-});
-
-function getPresenceBadge(s) {
-  const dateKey = today();
-  const val = (s.presences||{})[dateKey];
-  const opt = PRESENCE_OPTS.find(o=>o.val===val);
-  const txt = opt ? opt.ico+' '+opt.lbl : '— Marquer';
-  const bg  = opt ? opt.bg : 'var(--gray)';
-  const fg  = opt ? opt.fg : 'var(--mid)';
-  return `<div class="pres-wrap" style="position:relative">
-    <button class="pres-badge" onclick="event.stopPropagation();togglePresenceMenu('${s.id}')"
-      style="background:${bg};color:${fg};border:none;border-radius:8px;padding:4px 9px;
-      font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">
-      ${txt}
-    </button>
-    <div class="pres-menu" data-menu="${s.id}"
-      style="display:none;position:absolute;right:0;top:100%;margin-top:4px;
-      background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(10,37,64,.15);
-      z-index:100;min-width:140px;overflow:hidden">
-      ${PRESENCE_OPTS.map(o=>`
-        <button data-pval="${o.val}" onclick="event.stopPropagation();setPresence('${s.id}','${o.val}')"
-          style="display:block;width:100%;text-align:left;padding:10px 14px;border:none;
-          background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;
-          font-weight:${val===o.val?'700':'400'};color:var(--navy)">
-          ${o.ico} ${o.lbl}
-        </button>`).join('')}
-    </div>
-  </div>`;
+function deleteClass(cls){
+  showModal('Supprimer la classe "'+cls+'" ?',()=>{delete classes[cls];save();renderClasses();updateHomeCounts();showToast('Classe supprimée');});
 }
 
-function exportPresences() {
-  if (!curClass) return;
-  const ss = classes[curClass]||[];
-  const allDates = [...new Set(ss.flatMap(s=>Object.keys(s.presences||{})))].sort();
-  const rows = ss.map(s => {
-    const row = {nom:s.nom, prenom:s.prenom, classe:s.classe, groupe:s.sousGroupe||s.groupe||''};
-    allDates.forEach(d => { row[d] = (s.presences||{})[d] || ''; });
-    return row;
-  });
-  dlJSON(rows, 'presences_'+curClass+'_'+today()+'.json');
-  showToast('📤 Présences exportées');
+// ── IMPORT ───────────────────────────────────
+const COL_ALIASES={
+  nom:['nom','name','lastname','famille'],prenom:['prenom','prénom','firstname'],
+  ddn:['date_naissance','ddn','naissance','birthdate','né','birth'],
+  sexe:['sexe','genre','sex'],classe:['classe','class','group','groupe','division'],
+  note:['note_eleve','note','remarque','besoin','observation','handicap','ulis','pap','pps'],
+};
+function normKey(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
+function detectCols(headers){
+  const map={};
+  headers.forEach((h,i)=>{const n=normKey(h);Object.entries(COL_ALIASES).forEach(([f,al])=>{if(map[f]===undefined&&al.some(a=>n.includes(a)))map[f]=i;});});
+  return map;
+}
+function parseDate(val){
+  if(!val&&val!==0)return'';
+  if(typeof val==='number'&&typeof XLSX!=='undefined'){try{const d=XLSX.SSF.parse_date_code(val);if(d)return`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;}catch(e){}}
+  const s=String(val).trim();const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2]}-${m[1]}`;return s;
+}
+function makeStudent(d,idx){
+  const nom=(d.nom||'').trim().toUpperCase();if(!nom)return null;
+  return{id:`${Date.now()}_${idx}_${Math.random().toString(36).slice(2,6)}`,
+    nom,prenom:(d.prenom||'').trim(),ddn:parseDate(d.ddn_raw),
+    sexe:(d.sexe||'').trim().toUpperCase().charAt(0),
+    classe:(d.classe||'Inconnue').trim(),note:(d.note||'').trim(),
+    groupe:null,sousGroupe:null,etape:0,criteres:{},attitudes:{},crawl:null,
+    evalsTech:[],chronos:[],presences:{}};
+}
+function handleImport(event){
+  const file=event.target.files[0];if(!file)return;event.target.value='';
+  const ext=file.name.split('.').pop().toLowerCase();const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      let headers=[],rows=[];
+      if(ext==='csv'){const lines=e.target.result.split(/\r?\n/).filter(l=>l.trim());const sep=lines[0].includes(';')?';':',';headers=lines[0].split(sep).map(h=>h.replace(/['"]/g,'').trim());rows=lines.slice(1).map(l=>l.split(sep).map(v=>v.replace(/['"]/g,'').trim()));}
+      else{if(typeof XLSX==='undefined'){showToast('❌ Bibliothèque Excel non chargée');return;}const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});const ws=wb.Sheets[wb.SheetNames[0]];const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(!data.length)throw new Error('Vide');headers=data[0].map(String);rows=data.slice(1).filter(r=>r.some(c=>c!==''&&c!==null));}
+      const map=detectCols(headers);if(map.nom===undefined){showToast('❌ Colonne "nom" introuvable');return;}
+      importBuf=rows.map((r,i)=>{const g=f=>map[f]!==undefined?r[map[f]]:'';return makeStudent({nom:g('nom'),prenom:g('prenom'),ddn_raw:map.ddn!==undefined?r[map.ddn]:'',sexe:g('sexe'),classe:g('classe'),note:g('note')},i);}).filter(Boolean);
+      if(!importBuf.length){showToast('❌ Aucun élève');return;}showPreview();
+    }catch(err){console.error(err);showToast('❌ Erreur lecture fichier');}
+  };
+  if(ext==='csv')reader.readAsText(file,'UTF-8');else reader.readAsArrayBuffer(file);
+}
+function showPreview(){
+  const cls=[...new Set(importBuf.map(s=>s.classe))].join(', ');
+  document.getElementById('preview-count').textContent=`${importBuf.length} élève(s) · ${cls}`;
+  document.getElementById('preview-list').innerHTML=importBuf.slice(0,25).map(s=>`
+    <div class="prev-item">${s.sexe==='F'?'👧':s.sexe==='M'?'👦':'🧑'}<span style="flex:1;font-weight:500">${s.prenom} ${s.nom}</span>
+    ${s.note?`<span class="note-badge">⚡ ${s.note}</span>`:''}<span style="color:var(--lite)">${s.classe}</span></div>`).join('')
+    +(importBuf.length>25?`<div class="prev-item" style="color:var(--lite)">…et ${importBuf.length-25} autres</div>`:'');
+  document.getElementById('import-preview').classList.remove('hidden');
+}
+function confirmImport(){
+  let added=0,skip=0;
+  importBuf.forEach(s=>{if(!classes[s.classe])classes[s.classe]=[];const ex=classes[s.classe].find(e=>e.nom===s.nom&&e.prenom===s.prenom);if(!ex){classes[s.classe].push(s);added++;}else skip++;});
+  save();importBuf=[];document.getElementById('import-preview').classList.add('hidden');
+  updateHomeCounts();showToast(`✅ ${added} élève(s) ajouté(s)${skip?` · ${skip} doublon(s) ignoré(s)`:''}`);showScreen('screen-home');
+}
+function downloadSample(){
+  if(typeof XLSX==='undefined'){showToast('❌ Bibliothèque Excel non chargée');return;}
+  const ws=XLSX.utils.aoa_to_sheet([['nom','prenom','date_naissance','sexe','classe','note_eleve'],
+    ['DUPONT','Emma','14/03/2013','F','6A',''],['MARTIN','Lucas','07/09/2012','M','6A','PAP - Dyslexie'],['BERNARD','Chloé','22/11/2013','F','6A','ULIS']]);
+  ws['!cols']=[{wch:18},{wch:14},{wch:16},{wch:6},{wch:8},{wch:30}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Classe');XLSX.writeFile(wb,'modele_classe.xlsx');showToast('📥 Modèle téléchargé');
 }
 
 // ── EXPORT ───────────────────────────────────
-function exportClass() {
-  if (!curClass) return;
-  const data = (classes[curClass]||[]).map(s=>({
-    nom:s.nom, prenom:s.prenom, date_naissance:s.ddn?fmtDate(s.ddn):'',
-    sexe:s.sexe||'', classe:s.classe, note_eleve:s.note||'',
-    groupe:s.groupe||'', sous_groupe:s.sousGroupe||'',
-    nb_evals_tech: (s.evalsTech||[]).length,
-    nb_chronos: (s.chronos||[]).length,
-    meilleur_chrono: s.chronos&&s.chronos.length ? Math.min(...s.chronos.map(c=>c.temps)) : '',
-    dernier_chrono: s.chronos&&s.chronos.length ? s.chronos[s.chronos.length-1].temps : '',
-  }));
-  dlJSON(data, `natation_${curClass}_${today()}.json`);
-  showToast('📤 Export téléchargé');
+function exportAll(){dlJSON(classes,'natation_backup_'+today()+'.json');showToast('💾 Backup téléchargé');}
+function dlJSON(data,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-function exportAll() {
-  dlJSON(classes, `natation_backup_${today()}.json`);
-  showToast('💾 Backup complet téléchargé');
-}
-function dlJSON(data, name) {
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
-  a.download=name; document.body.appendChild(a); a.click();
-  document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-}
-function showBackups() {
-  const baks=[];
-  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('natation_bak_'))baks.push(k);}
-  if(!baks.length){showToast('Aucun backup disponible');return;}
-  baks.sort().reverse();
-  const latest=baks[0], date=latest.replace('natation_bak_','');
-  showModal(`Restaurer le backup du ${date} ?`,()=>{
-    try{classes=JSON.parse(localStorage.getItem(latest));save();renderClasses();showToast(`✅ Backup du ${date} restauré`);}
-    catch(e){showToast('❌ Erreur restauration');}
-  });
+function showBackups(){
+  const baks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('natation_bak_'))baks.push(k);}
+  if(!baks.length){showToast('Aucun backup');return;}baks.sort().reverse();
+  const latest=baks[0],date=latest.replace('natation_bak_','');
+  showModal('Restaurer le backup du '+date+' ?',()=>{try{classes=JSON.parse(localStorage.getItem(latest));save();renderClasses();updateHomeCounts();showToast('✅ Restauré');}catch(e){showToast('❌ Erreur');}});
 }
 
 // ── MODAL / TOAST ─────────────────────────────
-function showModal(msg,onOk) {
-  document.getElementById('modal-msg').textContent=msg;
-  document.getElementById('modal-ok').onclick=()=>{closeModal();onOk();};
-  document.getElementById('modal').classList.remove('hidden');
-}
+function showModal(msg,onOk){document.getElementById('modal-msg').textContent=msg;document.getElementById('modal-ok').onclick=()=>{closeModal();onOk();};document.getElementById('modal').classList.remove('hidden');}
 function closeModal(){document.getElementById('modal').classList.add('hidden');}
-function showToast(msg) {
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.remove('hidden');
-  clearTimeout(toastTmr); toastTmr=setTimeout(()=>t.classList.add('hidden'),2500);
-}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(toastTmr);toastTmr=setTimeout(()=>t.classList.add('hidden'),2500);}
 
-// ── SERVICE WORKER ────────────────────────────
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+// ── SW ────────────────────────────────────────
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 // ── INIT ─────────────────────────────────────
 load();
+updateHomeCounts();
