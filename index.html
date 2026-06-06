@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Natation EPS">
+  <meta name="theme-color" content="#0A2540">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Natation EPS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- ÉCRAN ACCUEIL                              -->
+<!-- ══════════════════════════════════════════ -->
+<div id="screen-home" class="screen active">
+  <div class="home-bg">
+    <div class="wave wave-1"></div>
+    <div class="wave wave-2"></div>
+    <div class="wave wave-3"></div>
+  </div>
+  <div class="home-content">
+    <div class="home-logo">
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+        <circle cx="28" cy="28" r="28" fill="rgba(255,255,255,0.15)"/>
+        <path d="M10 34c3-3 6-5 9-5s6 4 9 4 6-4 9-4 6 2 9 5" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+        <path d="M10 39c3-3 6-5 9-5s6 4 9 4 6-4 9-4 6 2 9 5" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round" fill="none"/>
+        <circle cx="28" cy="20" r="5" fill="white" opacity="0.9"/>
+        <path d="M28 25v6M24 28h8" stroke="#0A2540" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1 class="home-title">Natation<br><span>EPS</span></h1>
+    <p class="home-subtitle">Évaluation & Groupes · Savoir Nager</p>
+
+    <div class="home-actions">
+      <button class="btn-primary" onclick="showScreen('screen-classes')">
+        <span class="btn-icon">🏊</span>
+        Mes Classes
+      </button>
+      <button class="btn-secondary" onclick="showScreen('screen-import')">
+        <span class="btn-icon">📥</span>
+        Importer une Classe
+      </button>
+    </div>
+
+    <div class="home-modules">
+      <div class="module-badge active-module">Savoir Nager</div>
+      <div class="module-badge soon">Endurance</div>
+      <div class="module-badge soon">Vitesse</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- ÉCRAN IMPORT                               -->
+<!-- ══════════════════════════════════════════ -->
+<div id="screen-import" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('screen-home')">←</button>
+    <h2>Importer une Classe</h2>
+  </div>
+  <div class="screen-body">
+    <div class="import-zone" id="import-zone" onclick="document.getElementById('file-input').click()">
+      <div class="import-icon">📄</div>
+      <p class="import-title">Glisser un fichier JSON</p>
+      <p class="import-sub">ou appuyer pour sélectionner</p>
+      <input type="file" id="file-input" accept=".json" style="display:none" onchange="handleImport(event)">
+    </div>
+
+    <div class="import-format">
+      <p class="format-title">Format attendu :</p>
+      <pre class="format-code">[
+  { "nom": "DUPONT", "prenom": "Emma", "classe": "6A" },
+  { "nom": "MARTIN", "prenom": "Lucas", "classe": "6A" }
+]</pre>
+      <button class="btn-ghost" onclick="downloadSample()">📥 Télécharger un exemple</button>
+    </div>
+
+    <div id="import-preview" class="import-preview hidden">
+      <div class="preview-header">
+        <span id="preview-count"></span>
+        <button class="btn-confirm" onclick="confirmImport()">Confirmer l'import</button>
+      </div>
+      <div id="preview-list" class="preview-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- ÉCRAN CLASSES                              -->
+<!-- ══════════════════════════════════════════ -->
+<div id="screen-classes" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('screen-home')">←</button>
+    <h2>Mes Classes</h2>
+    <button class="btn-icon-sm" onclick="showScreen('screen-import')" title="Importer">+</button>
+    <button class="btn-icon-sm" onclick="exportAll()" title="Backup complet">💾</button>
+    <button class="btn-icon-sm" onclick="showBackups()" title="Restaurer backup">↩</button>
+  </div>
+  <div class="screen-body" id="classes-list">
+    <!-- Généré dynamiquement -->
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- ÉCRAN GROUPE (liste élèves d'une classe)  -->
+<!-- ══════════════════════════════════════════ -->
+<div id="screen-group" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" onclick="showScreen('screen-classes')">←</button>
+    <h2 id="group-title">Classe</h2>
+    <button class="btn-icon-sm" onclick="exportClass()" title="Exporter">⬆</button>
+  </div>
+
+  <!-- Onglets groupes -->
+  <div class="group-tabs">
+    <button class="tab-btn active" onclick="filterGroup('all')" id="tab-all">Tous <span id="count-all" class="tab-count"></span></button>
+    <button class="tab-btn" onclick="filterGroup('1')" id="tab-1">G1 <span id="count-1" class="tab-count g1"></span></button>
+    <button class="tab-btn" onclick="filterGroup('2')" id="tab-2">G2 <span id="count-2" class="tab-count g2"></span></button>
+    <button class="tab-btn" onclick="filterGroup('3')" id="tab-3">G3 <span id="count-3" class="tab-count g3"></span></button>
+    <button class="tab-btn" onclick="filterGroup('pending')" id="tab-pending">À évaluer <span id="count-pending" class="tab-count pending"></span></button>
+  </div>
+
+  <div class="screen-body" id="students-list">
+    <!-- Généré dynamiquement -->
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- ÉCRAN ÉVALUATION ÉLÈVE                    -->
+<!-- ══════════════════════════════════════════ -->
+<div id="screen-eval" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" id="eval-back-btn">←</button>
+    <h2 id="eval-student-name">Élève</h2>
+    <div id="eval-group-badge" class="group-badge-sm"></div>
+  </div>
+  <div class="screen-body" id="eval-content">
+    <!-- Généré dynamiquement selon étape -->
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- MODAL CONFIRMATION                         -->
+<!-- ══════════════════════════════════════════ -->
+<div id="modal" class="modal hidden">
+  <div class="modal-overlay" onclick="closeModal()"></div>
+  <div class="modal-box">
+    <p id="modal-message"></p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn-danger" id="modal-confirm-btn">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- TOAST                                      -->
+<!-- ══════════════════════════════════════════ -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
