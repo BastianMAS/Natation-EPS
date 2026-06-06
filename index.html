@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -67,25 +68,24 @@
   </div>
   <div class="screen-body">
     <div class="import-zone" id="import-zone" onclick="document.getElementById('file-input').click()">
-      <div class="import-icon">📄</div>
-      <p class="import-title">Glisser un fichier JSON</p>
-      <p class="import-sub">ou appuyer pour sélectionner</p>
-      <input type="file" id="file-input" accept=".json" style="display:none" onchange="handleImport(event)">
+      <div class="import-icon">📊</div>
+      <p class="import-title">Importer une liste de classe</p>
+      <p class="import-sub">Excel (.xlsx) ou Numbers (.csv) — appuyer pour sélectionner</p>
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv,.numbers" style="display:none" onchange="handleImport(event)">
     </div>
 
     <div class="import-format">
-      <p class="format-title">Format attendu :</p>
-      <pre class="format-code">[
-  {
-    "nom": "DUPONT",
-    "prenom": "Emma",
-    "date_naissance": "14/03/2013",
-    "sexe": "F",
-    "classe": "6A",
-    "note_eleve": "PAP - Dyslexie"
-  }
-]</pre>
-      <button class="btn-ghost" onclick="downloadSample()">📥 Télécharger un exemple</button>
+      <p class="format-title">Colonnes attendues dans le fichier :</p>
+      <div class="format-columns">
+        <div class="format-col"><span class="col-required">A</span><span>nom</span></div>
+        <div class="format-col"><span class="col-required">B</span><span>prenom</span></div>
+        <div class="format-col"><span class="col-required">C</span><span>date_naissance</span></div>
+        <div class="format-col"><span class="col-required">D</span><span>sexe</span></div>
+        <div class="format-col"><span class="col-required">E</span><span>classe</span></div>
+        <div class="format-col"><span class="col-optional">F</span><span>note_eleve</span></div>
+      </div>
+      <p class="format-hint">La 1ère ligne doit contenir les en-têtes. Les colonnes peuvent être dans n'importe quel ordre.</p>
+      <button class="btn-ghost" onclick="downloadSample()">📥 Télécharger un modèle Excel</button>
     </div>
 
     <div id="import-preview" class="import-preview hidden">

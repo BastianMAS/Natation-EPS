@@ -63,40 +63,130 @@ function showScreen(id) {
 }
 
 // ── IMPORT ───────────────────────────────────
+// Colonnes reconnues automatiquement (insensible à la casse et aux accents)
+const COL_MAP = {
+  nom:            ['nom', 'name', 'lastname', 'famille'],
+  prenom:         ['prenom', 'prénom', 'firstname', 'given'],
+  date_naissance: ['date_naissance', 'ddn', 'naissance', 'birthdate', 'date de naissance', 'né le', 'nee le'],
+  sexe:           ['sexe', 'genre', 'sex', 'gender'],
+  classe:         ['classe', 'class', 'group', 'groupe', 'division'],
+  note_eleve:     ['note_eleve', 'note', 'remarque', 'commentaire', 'besoin', 'ulis', 'pap', 'pps', 'observation'],
+};
+
+function normalizeKey(str) {
+  return (str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+function detectColumns(headers) {
+  const map = {};
+  headers.forEach((h, i) => {
+    const norm = normalizeKey(h);
+    Object.entries(COL_MAP).forEach(([field, aliases]) => {
+      if (!map[field] && aliases.some(a => norm.includes(a))) {
+        map[field] = i;
+      }
+    });
+  });
+  return map;
+}
+
+function rowToStudent(row, colMap, index) {
+  const get = (field) => {
+    const i = colMap[field];
+    if (i === undefined) return '';
+    const val = row[i];
+    if (val === null || val === undefined) return '';
+    // Gérer les dates Excel (nombre de jours depuis 1900)
+    if (field === 'date_naissance' && typeof val === 'number') {
+      const date = XLSX.SSF.parse_date_code(val);
+      if (date) return `${String(date.d).padStart(2,'0')}/${String(date.m).padStart(2,'0')}/${date.y}`;
+    }
+    return String(val).trim();
+  };
+
+  const nom = get('nom').toUpperCase();
+  if (!nom) return null;
+
+  return {
+    id: Date.now() + '_' + index + '_' + Math.random().toString(36).slice(2,7),
+    nom,
+    prenom:      get('prenom'),
+    ddn:         get('date_naissance'),
+    sexe:        get('sexe').toUpperCase().charAt(0) || '',
+    classe:      get('classe') || 'Inconnue',
+    note_eleve:  get('note_eleve'),
+    groupe:      null,
+    etape:       0,
+    criteres:    {},
+    crawl:       null,
+    observ:      {},
+    chrono:      null,
+  };
+}
+
 function handleImport(event) {
   const file = event.target.files[0];
   if (!file) return;
+
+  const ext = file.name.split('.').pop().toLowerCase();
   const reader = new FileReader();
+
   reader.onload = (e) => {
     try {
-      const data = JSON.parse(e.target.result);
-      if (!Array.isArray(data)) throw new Error('Format invalide');
-      importBuffer = data.map((d, i) => ({
-        id: Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2,7),
-        nom: (d.nom || '').trim().toUpperCase(),
-        prenom: (d.prenom || '').trim(),
-        classe: (d.classe || 'Inconnue').trim(),
-        ddn: (d.date_naissance || d.ddn || '').trim(),
-        sexe: (d.sexe || '').trim(),
-        note_eleve: (d.note_eleve || '').trim(),  // ULIS, PAP, PPS, handicap...
-        groupe: d.groupe_num || null,
-        etape: d.etape || 0,
-        criteres: d.criteres || {},
-        crawl: d.crawl || null,
-        observ: d.observ || {},
-        chrono: d.chrono || null,
-      })).filter(d => d.nom);
+      let rows = [];
+      let headers = [];
 
-      if (!importBuffer.length) {
-        showToast('❌ Aucun élève trouvé dans le fichier');
+      if (ext === 'csv') {
+        // Parsing CSV
+        const text = e.target.result;
+        const lines = text.split(/?
+/).filter(l => l.trim());
+        const sep = lines[0].includes(';') ? ';' : ',';
+        headers = lines[0].split(sep).map(h => h.replace(/["']/g, '').trim());
+        rows = lines.slice(1).map(l => l.split(sep).map(v => v.replace(/["']/g, '').trim()));
+      } else {
+        // XLSX / XLS / Numbers (exporté en xlsx)
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (data.length < 2) throw new Error('Fichier vide');
+        headers = data[0].map(String);
+        rows = data.slice(1).filter(r => r.some(c => c !== '' && c !== null));
+      }
+
+      const colMap = detectColumns(headers);
+
+      // Vérifier que le minimum est détecté
+      if (colMap.nom === undefined && colMap.prenom === undefined) {
+        showToast('❌ Colonnes "nom" et "prénom" non trouvées');
         return;
       }
+
+      importBuffer = rows
+        .map((row, i) => rowToStudent(row, colMap, i))
+        .filter(Boolean);
+
+      if (!importBuffer.length) {
+        showToast('❌ Aucun élève trouvé');
+        return;
+      }
+
+      // Afficher les colonnes détectées
+      const detected = Object.entries(colMap).map(([k,v]) => `${k}=col${v+1}`).join(' · ');
+      console.log('Colonnes détectées :', detected);
+
       showPreview();
     } catch (err) {
-      showToast('❌ Fichier invalide — vérifiez le format JSON');
+      console.error(err);
+      showToast('❌ Erreur lecture fichier — vérifiez le format');
     }
   };
-  reader.readAsText(file);
+
+  if (ext === 'csv') {
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    reader.readAsArrayBuffer(file);
+  }
   event.target.value = '';
 }
 
@@ -136,12 +226,29 @@ function confirmImport() {
 }
 
 function downloadSample() {
-  const sample = [
-    { nom: "DUPONT",   prenom: "Emma",  date_naissance: "14/03/2013", sexe: "F", classe: "6A", note_eleve: "" },
-    { nom: "MARTIN",   prenom: "Lucas", date_naissance: "07/09/2012", sexe: "M", classe: "6A", note_eleve: "PAP - Dyslexie" },
-    { nom: "BERNARD",  prenom: "Chloé", date_naissance: "22/11/2013", sexe: "F", classe: "6A", note_eleve: "ULIS - Déficience motrice" },
+  if (typeof XLSX === 'undefined') {
+    showToast('❌ Bibliothèque Excel non chargée');
+    return;
+  }
+  const headers = ['nom', 'prenom', 'date_naissance', 'sexe', 'classe', 'note_eleve'];
+  const rows = [
+    ['DUPONT',  'Emma',  '14/03/2013', 'F', '6A', ''],
+    ['MARTIN',  'Lucas', '07/09/2012', 'M', '6A', 'PAP - Dyslexie'],
+    ['BERNARD', 'Chloé', '22/11/2013', 'F', '6A', 'ULIS - Déficience motrice'],
+    ['ROUSSEAU','Théo',  '03/06/2013', 'M', '6A', ''],
   ];
-  downloadJSON(sample, 'exemple_classe.json');
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Largeurs colonnes
+  ws['!cols'] = [
+    {wch: 18}, {wch: 14}, {wch: 16}, {wch: 6}, {wch: 8}, {wch: 30}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Classe');
+  XLSX.writeFile(wb, 'modele_liste_classe.xlsx');
+  showToast('📥 Modèle Excel téléchargé');
 }
 
 function downloadJSON(data, filename) {

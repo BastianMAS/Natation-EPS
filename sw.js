@@ -1,4 +1,4 @@
-const CACHE = 'natation-eps-v2';
+const CACHE = 'natation-eps-v3';
 const ASSETS = [
   './',
   './index.html',
