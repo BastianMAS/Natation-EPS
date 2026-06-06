@@ -516,7 +516,9 @@ function renderStep3(el) {
                 const bg  = sel ? (n.v===2 ? '#D1FAE5' : n.v===1 ? '#FEF3C7' : '#FEE2E2') : 'var(--gray)';
                 const col = sel ? (n.v===2 ? '#065F46' : n.v===1 ? '#92400E' : '#991B1B') : 'var(--mid)';
                 const ico = n.v===2 ? '🟢' : n.v===1 ? '🟡' : '🔴';
-                return `<button onclick="setTechG3('${c.id}',${n.v})"
+                return `<button
+                  data-crit="${c.id}" data-val="${n.v}"
+                  onclick="setTechG3('${c.id}',${n.v})"
                   style="background:${bg};color:${col};border:none;border-radius:9px;
                   padding:9px 12px;text-align:left;font-family:'DM Sans',sans-serif;
                   font-size:13px;font-weight:${sel?'600':'400'};cursor:pointer;
@@ -529,28 +531,49 @@ function renderStep3(el) {
       }).join('')}
     </div>
 
-    ${suggest ? `
-    <div style="background:${suggest==='G3A'?'#D1FAE5':'#FEF3C7'};border-radius:12px;
-      padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:22px">${suggest==='G3A'?'🌟':'🏊'}</span>
+    <div id="g3-suggest" style="background:${suggest?suggest==='G3A'?'#D1FAE5':'#FEF3C7':'var(--gray)'};
+      border-radius:12px;padding:14px 16px;margin-bottom:12px;
+      display:${(suggest||filled>0)?'flex':'none'};align-items:center;gap:10px">
+      <span style="font-size:22px">${suggest?suggest==='G3A'?'🌟':'🏊':'📊'}</span>
       <div>
-        <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;
-          color:${suggest==='G3A'?'#065F46':'#92400E'}">Suggestion : ${suggest}</div>
-        <div style="font-size:12px;color:var(--mid)">Score technique ${total}/12 · Ajustable ci-dessous</div>
+        <div class="s-label" style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;
+          color:${suggest?suggest==='G3A'?'#065F46':'#92400E':'var(--mid)'}">
+          ${suggest?'Suggestion : '+suggest:filled+'/6 critères observés'}
+        </div>
+        <div class="s-score" style="font-size:12px;color:var(--mid)">
+          ${suggest?'Score '+total+'/12 · Ajustable ci-dessous':''}
+        </div>
       </div>
-    </div>` : filled > 0 ? `
-    <div style="background:var(--gray);border-radius:12px;padding:12px 14px;margin-bottom:12px;
-      font-size:13px;color:var(--mid)">${filled}/6 critères observés</div>` : ''}
+    </div>
 
     <div class="card">
       <div class="card-title">⏱ Chrono 25m NL — Plongeon · Coulée · Sprint</div>
-      <div class="chrono-wrap">
-        <div class="chrono-lbl">Temps en secondes (ex: 18.45)</div>
-        <input class="chrono-in" type="number" inputmode="decimal" placeholder="—"
-          step="0.01" min="0" max="120" id="chrono-in"
-          value="${s.chrono||''}" oninput="saveChrono(this.value)">
-        <div class="chrono-hint">Éval. diagnostique · début de cycle</div>
-      </div>
+      ${s.chrono ? `
+        <div style="text-align:center;padding:10px 0">
+          <div style="font-family:'Syne',sans-serif;font-size:40px;font-weight:700;color:var(--navy)">${s.chrono}s</div>
+          <div style="font-size:12px;color:var(--mid);margin-top:4px">Temps enregistré</div>
+          <button onclick="currentStudent.chrono=null;save();renderEval()"
+            style="margin-top:8px;background:transparent;border:none;color:var(--mid);font-size:12px;cursor:pointer;text-decoration:underline">
+            Modifier
+          </button>
+        </div>` : `
+        <div style="text-align:center;padding:10px 0">
+          <div style="font-size:13px;color:var(--mid);margin-bottom:12px">Saisir le temps manuellement ou utiliser le mode série</div>
+          <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:10px">
+            <input class="chrono-in" type="number" inputmode="decimal" placeholder="ex: 18.45"
+              step="0.01" min="0" max="120" id="chrono-in"
+              style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:var(--navy);
+              border:none;border-bottom:3px solid var(--teal);background:transparent;
+              width:140px;outline:none;text-align:center"
+              oninput="saveChrono(this.value)">
+            <span style="font-size:20px;color:var(--mid)">s</span>
+          </div>
+        </div>`}
+      <button onclick="openSerie()" style="width:100%;background:var(--navy);color:#fff;border:none;
+        border-radius:10px;padding:13px;font-family:'DM Sans',sans-serif;font-size:15px;
+        font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        🏁 Mode Série — Chrono multi-élèves
+      </button>
     </div>
 
     <div class="ebtns">
@@ -566,7 +589,37 @@ function renderStep3(el) {
 function setTechG3(critId, val) {
   if (!currentStudent.techG3) currentStudent.techG3 = {};
   currentStudent.techG3[critId] = val;
-  save(); renderEval();
+  save();
+
+  // Mise à jour visuelle SANS recréer la page (évite le scroll en haut)
+  // 1. Mettre à jour les boutons du critère cliqué
+  document.querySelectorAll('[data-crit="' + critId + '"]').forEach(btn => {
+    const bval = parseInt(btn.dataset.val);
+    const sel  = bval === val;
+    btn.style.background = sel ? (bval===2?'#D1FAE5':bval===1?'#FEF3C7':'#FEE2E2') : 'var(--gray)';
+    btn.style.color      = sel ? (bval===2?'#065F46':bval===1?'#92400E':'#991B1B') : 'var(--mid)';
+    btn.style.fontWeight = sel ? '600' : '400';
+  });
+
+  // 2. Mettre à jour la suggestion sous-groupe
+  const scores  = TECH_G3.map(c => currentStudent.techG3[c.id] !== undefined ? currentStudent.techG3[c.id] : -1);
+  const filled  = scores.filter(v => v >= 0).length;
+  const total   = scores.filter(v => v >= 0).reduce((a,b) => a+b, 0);
+  const suggest = filled === 6 ? (total >= 9 ? 'G3A' : 'G3B') : null;
+  const suggestEl = document.getElementById('g3-suggest');
+  if (!suggestEl) return;
+  suggestEl.style.display = 'flex';
+  if (suggest) {
+    suggestEl.style.background = suggest==='G3A' ? '#D1FAE5' : '#FEF3C7';
+    suggestEl.querySelector('.s-label').textContent = 'Suggestion : ' + suggest;
+    suggestEl.querySelector('.s-label').style.color = suggest==='G3A' ? '#065F46' : '#92400E';
+    suggestEl.querySelector('.s-score').textContent = 'Score ' + total + '/12 · Ajustable ci-dessous';
+  } else {
+    suggestEl.style.background = 'var(--gray)';
+    suggestEl.querySelector('.s-label').textContent = filled + '/6 critères observés';
+    suggestEl.querySelector('.s-label').style.color = 'var(--mid)';
+    suggestEl.querySelector('.s-score').textContent = '';
+  }
 }
 
 function saveChrono(v) { currentStudent.chrono = parseFloat(v) || null; save(); }
@@ -760,6 +813,173 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   });
+}
+
+
+// ══════════════════════════════════════════════
+// MODE SÉRIE — Chrono multi-élèves G3
+// ══════════════════════════════════════════════
+
+let serieState = {
+  running: false,
+  startTime: null,
+  elapsed: 0,
+  timer: null,
+  selectedIds: [],
+  temps: {},  // { id: secondes }
+};
+
+function openSerie() {
+  if (!currentClass) return;
+  // Pré-sélectionner l'élève courant
+  serieState.selectedIds = currentStudent ? [currentStudent.id] : [];
+  serieState.temps = {};
+  serieState.running = false;
+  serieState.elapsed = 0;
+  clearInterval(serieState.timer);
+  renderSerie();
+  showScreen('screen-serie');
+}
+
+function renderSerie() {
+  const el = document.getElementById('serie-body');
+  if (!el) return;
+  const ss = (classes[currentClass]||[]).filter(s => s.groupe==='3');
+  ss.sort((a,b) => a.nom.localeCompare(b.nom));
+
+  el.innerHTML = `
+    <!-- Chrono -->
+    <div class="card" style="text-align:center">
+      <div id="serie-chrono" style="font-family:'Syne',sans-serif;font-size:64px;font-weight:800;
+        color:var(--navy);letter-spacing:2px;line-height:1">
+        ${formatElapsed(serieState.elapsed)}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:14px">
+        <button id="btn-start" onclick="toggleChrono()"
+          style="background:var(--g3);color:#fff;border:none;border-radius:12px;
+          padding:14px 28px;font-size:17px;font-weight:700;cursor:pointer;flex:1">
+          ${serieState.running ? '⏹ Stop' : '▶ Démarrer'}
+        </button>
+        <button onclick="resetSerie()"
+          style="background:var(--gray);color:var(--mid);border:none;border-radius:12px;
+          padding:14px 18px;font-size:17px;cursor:pointer">↺</button>
+      </div>
+    </div>
+
+    <!-- Sélection élèves de la série (1 à 4) -->
+    <div class="card">
+      <div class="card-title">🏊 Élèves dans cette série <span style="font-size:12px;font-weight:400;color:var(--mid)">(1 à 4)</span></div>
+      ${ss.length === 0 ? '<p style="font-size:13px;color:var(--mid)">Aucun élève G3 dans cette classe.</p>' :
+        ss.map(s => {
+          const sel = serieState.selectedIds.includes(s.id);
+          const t   = serieState.temps[s.id];
+          return `
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gray)">
+              <button onclick="toggleSerieEleve('${s.id}')"
+                style="width:28px;height:28px;border-radius:50%;border:2px solid ${sel?'var(--teal)':'var(--lite)'};
+                background:${sel?'var(--teal)':'transparent'};color:${sel?'#fff':'var(--mid)'};
+                font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+                ${sel?'✓':''}
+              </button>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
+                <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'}${s.chrono?' · '+s.chrono+'s déjà enreg.':''}</div>
+              </div>
+              ${sel ? `
+                <div style="display:flex;align-items:center;gap:6px">
+                  ${t ? `<span style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;
+                    color:var(--navy)">${t}s</span>` : ''}
+                  <button onclick="stopEleve('${s.id}')"
+                    style="background:${t?'var(--g3)':'var(--teal)'};color:#fff;border:none;border-radius:8px;
+                    padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer">
+                    ${t ? '✓' : 'Arrivée'}
+                  </button>
+                </div>` : ''}
+            </div>`;
+        }).join('')}
+    </div>
+
+    <!-- Valider les temps -->
+    ${Object.keys(serieState.temps).length > 0 ? `
+    <div class="ebtns">
+      <button class="ebtn teal" onclick="validerTemps()">
+        ✅ Enregistrer les temps dans les fiches
+      </button>
+    </div>` : ''}
+  `;
+}
+
+function toggleSerieEleve(id) {
+  const idx = serieState.selectedIds.indexOf(id);
+  if (idx >= 0) {
+    serieState.selectedIds.splice(idx, 1);
+    delete serieState.temps[id];
+  } else {
+    if (serieState.selectedIds.length >= 4) {
+      showToast('Maximum 4 élèves par série');
+      return;
+    }
+    serieState.selectedIds.push(id);
+  }
+  renderSerie();
+}
+
+function toggleChrono() {
+  if (serieState.running) {
+    // Stop
+    clearInterval(serieState.timer);
+    serieState.running = false;
+  } else {
+    // Start
+    const offset = serieState.elapsed;
+    serieState.startTime = Date.now() - offset * 1000;
+    serieState.running = true;
+    serieState.timer = setInterval(() => {
+      serieState.elapsed = (Date.now() - serieState.startTime) / 1000;
+      const el = document.getElementById('serie-chrono');
+      if (el) el.textContent = formatElapsed(serieState.elapsed);
+    }, 50);
+  }
+  renderSerie();
+}
+
+function stopEleve(id) {
+  // Enregistrer le temps courant pour cet élève
+  const t = Math.round(serieState.elapsed * 100) / 100;
+  serieState.temps[id] = t;
+  renderSerie();
+}
+
+function resetSerie() {
+  clearInterval(serieState.timer);
+  serieState.running = false;
+  serieState.elapsed = 0;
+  serieState.temps = {};
+  renderSerie();
+}
+
+function validerTemps() {
+  let count = 0;
+  Object.entries(serieState.temps).forEach(([id, t]) => {
+    const ss = classes[currentClass]||[];
+    const eleve = ss.find(s => String(s.id) === String(id));
+    if (eleve) { eleve.chrono = t; count++; }
+  });
+  save();
+  showToast(`✅ ${count} temps enregistré${count>1?'s':''}`);
+  // Retourner à l'élève courant si possible
+  if (currentStudent) {
+    refreshEvalHeader(); renderEval();
+    showScreen('screen-eval');
+  } else {
+    showScreen('screen-group');
+  }
+}
+
+function formatElapsed(s) {
+  const min = Math.floor(s / 60);
+  const sec = (s % 60).toFixed(2).padStart(5,'0');
+  return min > 0 ? `${min}:${sec}` : sec;
 }
 
 // ── INIT ─────────────────────────────────────
