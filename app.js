@@ -10,14 +10,25 @@ let importBuf  = [];
 let toastTmr   = null;
 
 // ── CRITÈRES SAVOIR NAGER ──
+// Référentiel officiel — Arrêté du 28 février 2022 (abroge celui du 9 juillet 2015)
+// Parcours continu SANS reprise d'appuis au bord, SANS lunettes
 const CRITERES_SN = [
-  { id:'c1', label:"Sauter dans l'eau",         sub:"Se mettre à l'eau seul en sautant" },
-  { id:'c2', label:"Se déplacer 15m",            sub:"Sans reprise d'appui sur fond ou bords" },
-  { id:'c3', label:"Surplace 10 secondes",       sub:"Maintenir la tête hors de l'eau" },
-  { id:'c4', label:"Se retourner sur le dos",    sub:"Depuis la position ventrale" },
-  { id:'c5', label:"Nager sur le dos 10m",       sub:"En continuité du retournement" },
-  { id:'c6', label:"Se retourner sur le ventre", sub:"Depuis la position dorsale" },
-  { id:'c7', label:"Sortir de l'eau",            sub:"Sans l'aide de l'échelle" },
+  { id:'c1', label:"Entrée en chute arrière",        sub:"Depuis le bord, entrer dans l'eau en chute arrière" },
+  { id:'c2', label:"Déplacement 3m50 vers obstacle", sub:"Se déplacer 3m50 en direction de l'obstacle" },
+  { id:'c3', label:"Franchir l'obstacle en immersion",sub:"Franchir l'obstacle en immersion complète sur 1m50" },
+  { id:'c4', label:"20m sur le ventre + surplace",   sub:"Nager 20m ventre · au signal : surplace vertical 15s puis reprendre" },
+  { id:'c5', label:"Demi-tour + passage dos/ventre", sub:"Demi-tour sans appui · passer de la position ventrale au dos" },
+  { id:'c6', label:"20m sur le dos + surplace",      sub:"Nager 20m dos · au signal : surplace horizontal dorsal 15s puis reprendre" },
+  { id:'c7', label:"Retour obstacle + immersion",    sub:"Se retourner ventre · franchir à nouveau l'obstacle en immersion" },
+  { id:'c8', label:"Retour au point de départ",      sub:"Se déplacer sur le ventre pour revenir au point de départ" },
+  { id:'c9', label:"Ancrage sécurisé",               sub:"S'ancrer de manière sécurisée sur un élément fixe et stable" },
+];
+
+// Connaissances et attitudes (validées séparément)
+const ATTITUDES_SN = [
+  { id:'a1', label:"Identifier le surveillant",      sub:"Savoir qui alerter en cas de problème" },
+  { id:'a2', label:"Règles hygiène et sécurité",     sub:"Connaître les règles de base dans un établissement de bains" },
+  { id:'a3', label:"Identifier les environnements",  sub:"Savoir pour quels environnements le savoir-nager est adapté" },
 ];
 
 // ── CRITÈRES TECHNIQUES G3 ──
@@ -132,7 +143,7 @@ function makeStudent(d, idx) {
     classe: (d.classe||'Inconnue').trim(),
     note: (d.note||'').trim(),
     groupe: null, sousGroupe: null,
-    etape: 0, criteres: {}, crawl: null,
+    etape: 0, criteres: {}, attitudes: {}, crawl: null,
     evalsTech: [],   // [{ date, scores:{plongeon,coulee,...} }]
     chronos:   [],   // [{ date, temps }]
   };
@@ -291,7 +302,9 @@ function renderStudents() {
     const lastTech = s.evalsTech && s.evalsTech.length ? s.evalsTech[s.evalsTech.length-1] : null;
     const lastChrono = s.chronos && s.chronos.length ? s.chronos[s.chronos.length-1] : null;
     const sub = s.groupe==='3'
-      ? `${lastTech?'Tech ×'+s.evalsTech.length:'Pas de tech'} · ${lastChrono?'⏱ '+lastChrono.temps+'s':'Pas de chrono'}`
+      ? (s.sousGroupe||'G3')+' · '+(lastTech?'Tech ×'+s.evalsTech.length:'Pas de tech')+' · '+(lastChrono?'⏱ '+lastChrono.temps+'s':'Pas de chrono')
+      : s.groupe==='2' ? 'Endurance · Nageur autonome'
+      : s.groupe==='1' ? 'Savoir Nager · Non nageur'
       : etapeLabel(s);
     return `<div class="stu-card ${gc}" onclick="openStudent('${s.id}')">
       <div class="avatar ${avc}">${ini}</div>
@@ -305,10 +318,10 @@ function renderStudents() {
 }
 function studentStyle(s) {
   if (!s.groupe) return {gc:'pend',avc:'avp',gl:'À évaluer',pc:'p'};
-  if (s.groupe==='1') return {gc:'g1',avc:'av1',gl:'Groupe 1',pc:'g1'};
-  if (s.groupe==='2') return {gc:'g2',avc:'av2',gl:'Groupe 2',pc:'g2'};
-  if (s.sousGroupe==='G3A') return {gc:'g3a',avc:'av3a',gl:'G3A',pc:'g3a'};
-  return {gc:'g3b',avc:'av3b',gl:'G3B',pc:'g3b'};
+  if (s.groupe==='1') return {gc:'g1',avc:'av1',gl:'Savoir Nager G1',pc:'g1'};
+  if (s.groupe==='2') return {gc:'g2',avc:'av2',gl:'Endurance G2',pc:'g2'};
+  if (s.sousGroupe==='G3A') return {gc:'g3a',avc:'av3a',gl:'Vitesse G3A',pc:'g3a'};
+  return {gc:'g3b',avc:'av3b',gl:'Vitesse G3B',pc:'g3b'};
 }
 function etapeLabel(s) {
   const nb = Object.keys(s.criteres||{}).length;
@@ -374,43 +387,95 @@ function renderEval() {
 // ── ÉTAPE 1 : 7 critères ──
 function renderStep1(el) {
   const s = curStudent;
-  const koCount = CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
-  const done = Object.keys(s.criteres).length;
+  if (!s.criteres) s.criteres = {};
+  if (!s.attitudes) s.attitudes = {};
+
+  const koCount   = CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
+  const doneParcours = Object.keys(s.criteres).length;
+  const doneAttitudes = Object.keys(s.attitudes).length;
+  const allDone = doneParcours===9 && doneAttitudes===3;
+  const koAttitudes = ATTITUDES_SN.filter(a=>s.attitudes[a.id]===false).length;
+  const hasKo = koCount>0 || koAttitudes>0;
+
   el.innerHTML = `
     <div class="steps"><div class="step cur"></div><div class="step"></div></div>
+
     <div class="eval-card" style="margin-top:12px">
-      <div class="eval-card-title">🏊 Test Savoir Nager — 7 critères</div>
-      <p style="font-size:12px;color:var(--mid);margin-bottom:10px">Appuyer pour basculer ✓ / ✗ / —</p>
-      ${CRITERES_SN.map(c=>{
+      <div class="eval-card-title">🏊 Parcours Savoir-Nager — Arrêté 2022</div>
+      <p style="font-size:12px;color:var(--mid);margin-bottom:6px">
+        Parcours continu · sans reprise d'appuis · sans lunettes
+      </p>
+      <div style="background:var(--g3bbg);border-radius:8px;padding:7px 10px;margin-bottom:12px;font-size:11px;color:var(--g3bdk);font-weight:600">
+        ℹ️ Réf. officiel — Arrêté du 28 février 2022 (MENE2129642A)
+      </div>
+      ${CRITERES_SN.map((c,i)=>{
         const v=s.criteres[c.id];
         const cls=v===true?'ok':v===false?'ko':'';
         return `<div class="crit" onclick="toggleSN('${c.id}')">
-          <button class="ctog ${cls}">${v===true?'✓':v===false?'✗':''}</button>
+          <div style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;
+            border-radius:50%;background:var(--navy);color:#fff;font-size:10px;font-weight:700;
+            flex-shrink:0;margin-right:2px">${i+1}</div>
+          <button class="ctog ${cls}" style="flex-shrink:0">${v===true?'✓':v===false?'✗':''}</button>
           <div><div class="clabel">${c.label}</div><div class="csub">${c.sub}</div></div>
         </div>`;
       }).join('')}
     </div>
-    ${koCount>0?`
-      <div class="banner g1"><div class="bico">⚠️</div>
-        <div class="btitle">${koCount} critère${koCount>1?'s':''} échoué${koCount>1?'s':''}</div>
-        <div class="bsub">Orientation Groupe 1</div>
-      </div>
-      <div class="ebtns"><button class="ebtn g1c" onclick="setG1()">Valider → Groupe 1</button></div>`:`
-      <div class="ebtns">
-        <button class="ebtn teal" onclick="validerSN()" ${done<7?'disabled':''}>
-          ✓ Tous validés — Étape suivante${done<7?`<br><small style="font-weight:400;font-size:12px">${done}/7 cochés</small>`:''}
-        </button>
-      </div>`}`;
+
+    <div class="eval-card">
+      <div class="eval-card-title">🧠 Connaissances et attitudes</div>
+      ${ATTITUDES_SN.map(a=>{
+        const v=s.attitudes[a.id];
+        const cls=v===true?'ok':v===false?'ko':'';
+        return `<div class="crit" onclick="toggleAttitude('${a.id}')">
+          <button class="ctog ${cls}" style="flex-shrink:0">${v===true?'✓':v===false?'✗':''}</button>
+          <div><div class="clabel">${a.label}</div><div class="csub">${a.sub}</div></div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    ${hasKo ? renderBannerG1(koCount, koAttitudes) : renderBtnValiderSN(allDone, doneParcours, doneAttitudes)}
+  `;
+}
+function renderBannerG1(koCount, koAttitudes) {
+  const msg = [
+    koCount>0 ? koCount+' étape'+(koCount>1?'s':'')+' échouée'+(koCount>1?'s':'') : '',
+    koAttitudes>0 ? koAttitudes+' attitude'+(koAttitudes>1?'s':'')+' non maîtrisée'+(koAttitudes>1?'s':'') : '',
+  ].filter(Boolean).join(' · ');
+  return `<div class="banner g1"><div class="bico">⚠️</div>
+    <div class="btitle">${msg}</div>
+    <div class="bsub">Orientation Groupe 1 — Non nageur</div>
+  </div>
+  <div class="ebtns"><button class="ebtn g1c" onclick="setG1()">Valider → Groupe 1</button></div>`;
+}
+function renderBtnValiderSN(allDone, doneParcours, doneAttitudes) {
+  const hint = !allDone ? '<br><small style="font-weight:400;font-size:12px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>' : '';
+  return `<div class="ebtns">
+    <button class="ebtn teal" onclick="validerSN()" ${!allDone?'disabled':''}>
+      ✓ Parcours validé — Étape suivante${hint}
+    </button>
+  </div>`;
 }
 function toggleSN(id) {
-  const s=curStudent, v=s.criteres[id];
-  if (!v && v!==false) s.criteres[id]=true;
+  const s=curStudent;
+  if (!s.criteres) s.criteres={};
+  const v=s.criteres[id];
+  if (v===undefined||v===null) s.criteres[id]=true;
   else if (v===true) s.criteres[id]=false;
   else delete s.criteres[id];
   save(); renderEval();
 }
-function setG1() { curStudent.groupe='1'; curStudent.etape=99; save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Groupe 1 attribué'); }
+function toggleAttitude(id) {
+  const s=curStudent;
+  if (!s.attitudes) s.attitudes={};
+  const v=s.attitudes[id];
+  if (v===undefined||v===null) s.attitudes[id]=true;
+  else if (v===true) s.attitudes[id]=false;
+  else delete s.attitudes[id];
+  save(); renderEval();
+}
+function setG1() { curStudent.groupe='1'; curStudent.etape=99; save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Orienté Savoir Nager G1'); }
 function validerSN() { curStudent.etape=2; save(); renderEval(); }
+
 
 // ── ÉTAPE 2 : Crawl ? ──
 function renderStep2(el) {
@@ -422,8 +487,8 @@ function renderStep2(el) {
         7 critères validés.<br>Sait-il nager le <strong>crawl</strong> de façon identifiable ?
       </p>
       <div class="ebtns">
-        <button class="ebtn teal" onclick="setCrawl(true)">✓ Oui — Crawl identifiable<br><small style="font-weight:400;font-size:12px">→ Groupe 3 (tech + chrono)</small></button>
-        <button class="ebtn g2c" onclick="setCrawl(false)">✗ Non — Nage hasardeuse<br><small style="font-weight:400;font-size:12px">→ Groupe 2</small></button>
+        <button class="ebtn teal" onclick="setCrawl(true)">✓ Oui — Crawl identifiable<br><small style="font-weight:400;font-size:12px">→ Natation de Vitesse (G3A/G3B)</small></button>
+        <button class="ebtn g2c" onclick="setCrawl(false)">✗ Non — Nage hasardeuse<br><small style="font-weight:400;font-size:12px">→ Natation d'Endurance (G2)</small></button>
         <button class="ebtn gray" onclick="retourE1()">← Retour aux critères</button>
       </div>
     </div>`;
@@ -432,7 +497,7 @@ function retourE1() { curStudent.etape=1; save(); renderEval(); }
 function setCrawl(v) {
   if (!v) {
     curStudent.groupe='2'; curStudent.crawl=false; curStudent.etape=99;
-    save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Groupe 2 attribué');
+    save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Orienté Endurance G2');
   } else {
     // Demander G3A ou G3B directement
     curStudent.crawl=true;
@@ -449,10 +514,10 @@ function renderStep3(el) {
       </p>
       <div class="ebtns">
         <button class="ebtn g3a" onclick="setGroupe3('G3A')">
-          🌟 G3A — Excellent nageur<br><small style="font-weight:400;font-size:12px">Nageur club · très bonne technique</small>
+          🌟 Vitesse G3A — Excellent nageur<br><small style="font-weight:400;font-size:12px">Nageur club · très bonne technique</small>
         </button>
         <button class="ebtn g3b" onclick="setGroupe3('G3B')">
-          🏊 G3B — Nageur à affiner<br><small style="font-weight:400;font-size:12px">Crawl présent · technique à consolider</small>
+          🏊 Vitesse G3B — Nageur à affiner<br><small style="font-weight:400;font-size:12px">Crawl présent · technique à consolider</small>
         </button>
         <button class="ebtn gray" onclick="retourE1()">← Retour</button>
       </div>
@@ -469,26 +534,32 @@ function setGroupe3(sg) {
 // ── RÉCAP SAVOIR NAGER ──
 function renderRecapSN(el) {
   const s=curStudent;
-  const G={'1':{ico:'🚨',title:'Groupe 1 — Non nageur',desc:'Échec au test savoir nager.',c:'g1'},
-            '2':{ico:'🏊',title:'Groupe 2 — Nageur autonome',desc:'Crawl non identifiable.',c:'g2'}};
+  const G={'1':{ico:'🚨',title:'Savoir Nager — Non nageur',desc:'Échec au parcours savoir nager officiel.',c:'g1'},
+            '2':{ico:'🏊',title:'Endurance — Nageur autonome',desc:"Crawl non identifiable. Orienté Natation d'Endurance.",c:'g2'}};
   const g = G[s.groupe] || {ico:'🌊',title:'Groupe 3',desc:'',c:'g3a'};
   const ko=CRITERES_SN.filter(c=>s.criteres[c.id]===false);
   const ok=CRITERES_SN.filter(c=>s.criteres[c.id]===true);
+  const koAtt=ATTITUDES_SN.filter(a=>(s.attitudes||{})[a.id]===false);
+  const okAtt=ATTITUDES_SN.filter(a=>(s.attitudes||{})[a.id]===true);
   el.innerHTML = `
     <div class="banner ${g.c}"><div class="bico">${g.ico}</div>
       <div class="btitle">${g.title}</div><div class="bsub">${g.desc}</div>
     </div>
-    ${ok.length?`<div class="eval-card"><div class="eval-card-title">✅ Critères validés</div>
+    ${ok.length?`<div class="eval-card"><div class="eval-card-title">✅ Étapes du parcours validées (${ok.length}/9)</div>
       ${ok.map(c=>`<div class="crit"><button class="ctog ok">✓</button><div><div class="clabel">${c.label}</div></div></div>`).join('')}
     </div>`:''}
-    ${ko.length?`<div class="eval-card"><div class="eval-card-title">❌ Critères échoués</div>
+    ${ko.length?`<div class="eval-card"><div class="eval-card-title">❌ Étapes échouées (${ko.length})</div>
       ${ko.map(c=>`<div class="crit"><button class="ctog ko">✗</button><div><div class="clabel">${c.label}</div><div class="csub">${c.sub}</div></div></div>`).join('')}
+    </div>`:''}
+    ${okAtt.length||koAtt.length?`<div class="eval-card"><div class="eval-card-title">🧠 Connaissances et attitudes</div>
+      ${okAtt.map(a=>`<div class="crit"><button class="ctog ok">✓</button><div><div class="clabel">${a.label}</div></div></div>`).join('')}
+      ${koAtt.map(a=>`<div class="crit"><button class="ctog ko">✗</button><div><div class="clabel">${a.label}</div></div></div>`).join('')}
     </div>`:''}
     <div class="ebtns"><button class="ebtn gray" onclick="resetEvalSN()">↺ Réévaluer</button></div>`;
 }
 function resetEvalSN() {
   showModal('Réévaluer ? Groupe et données effacés.', () => {
-    Object.assign(curStudent, {groupe:null,sousGroupe:null,etape:0,criteres:{},crawl:null,evalsTech:[],chronos:[]});
+    Object.assign(curStudent, {groupe:null,sousGroupe:null,etape:0,criteres:{},attitudes:{},crawl:null,evalsTech:[],chronos:[]});
     save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('Réinitialisé');
   });
 }
@@ -501,9 +572,11 @@ function openFicheG3() {
   if (!s.evalsTech) s.evalsTech=[];
   if (!s.chronos) s.chronos=[];
   document.getElementById('g3-name').textContent = `${s.prenom} ${s.nom}`;
+  // titre déjà mis via HTML
   const badge = document.getElementById('g3-badge');
   badge.textContent = s.sousGroupe||'G3';
   badge.className = `gpill ${s.sousGroupe==='G3A'?'g3a':'g3b'}`;
+  // Afficher "Natation de Vitesse" dans le titre écran G3
   const alert = document.getElementById('g3-alert');
   if (s.note) { alert.textContent='⚡ '+s.note; alert.classList.remove('hidden'); }
   else alert.classList.add('hidden');
@@ -555,7 +628,7 @@ function renderFicheG3() {
     <!-- Hero -->
     <div class="fiche-hero">
       <div class="fiche-hero-name">${s.prenom} ${s.nom}</div>
-      <div class="fiche-hero-meta">${s.classe}${ageStr?' · '+ageStr:''}${s.sexe?' · '+s.sexe:''}</div>
+      <div class="fiche-hero-meta">Natation de Vitesse · ${s.classe}${ageStr?' · '+ageStr:''}${s.sexe?' · '+s.sexe:''}</div>
       <div class="fiche-hero-badges">
         <div class="hero-badge ${s.sousGroupe==='G3A'?'g3a':'g3b'}">${s.sousGroupe||'G3'}</div>
         ${evals.length?`<div class="hero-badge">${evals.length} éval${evals.length>1?'s':''} tech</div>`:''}
@@ -589,7 +662,7 @@ function renderFicheG3() {
         📋 Nouvelle évaluation technique
       </button>
       <button class="ebtn" style="background:var(--navy2)" onclick="changeSousGroupe()">
-        ${s.sousGroupe==='G3A'?'⬇ Reclasser en G3B':'⬆ Reclasser en G3A'}
+        ${s.sousGroupe==='G3A'?'⬇ Reclasser en Vitesse G3B':'⬆ Reclasser en Vitesse G3A'}
       </button>
     </div>
 
