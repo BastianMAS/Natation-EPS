@@ -602,7 +602,7 @@ function renderFicheG3() {
       return `<div class="hist-card" style="border-left-color:${idx===evals.length-1?'var(--teal)':'var(--lite)'}">
         <div class="hist-date">
           ${idx===evals.length-1?'🔵 Dernière · ':''}Séance ${idx+1} — ${fmtDate(ev.date)}
-          <span style="float:right;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--navy)">${total}/12</span>
+          <span style="float:right;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--navy)">${total}/12</span>
         </div>
         ${TECH_G3.map(c => {
           const v = ev.scores[c.id];

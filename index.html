@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Natation EPS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ══════════════════════════════════════════
@@ -169,7 +169,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
 /* ── STATS ── */
 .stat-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:var(--sp-sm)}
 .stat-box{background:#fff;border-radius:var(--r-md);padding:10px 8px;text-align:center;box-shadow:0 1px 6px rgba(10,37,64,.06)}
-.stat-val{font-family:'Syne',sans-serif;font-size:var(--fs-xl);font-weight:800;color:var(--navy);line-height:1.1}
+.stat-val{font-family:'Inter',sans-serif;font-size:var(--fs-xl);font-weight:700;color:var(--navy);line-height:1.1}
 .stat-lbl{font-size:10px;color:var(--mid);margin-top:2px;font-weight:500;letter-spacing:.2px}
 .stat-trend{font-size:14px;margin-top:1px}
 
@@ -189,7 +189,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
 
 .chrono-hist-card{background:#fff;border-radius:var(--r-md);padding:10px var(--sp-md);margin-bottom:6px;box-shadow:0 1px 6px rgba(10,37,64,.06);display:flex;align-items:center;gap:12px}
 .chrono-num{font-size:var(--fs-xs);font-weight:700;color:var(--mid);width:52px;flex-shrink:0}
-.chrono-val{font-family:'Syne',sans-serif;font-size:var(--fs-2xl);font-weight:800;color:var(--navy);flex:1;line-height:1}
+.chrono-val{font-family:'Inter',sans-serif;font-size:var(--fs-2xl);font-weight:700;color:var(--navy);flex:1;line-height:1}
 .chrono-date{font-size:10px;color:var(--lite)}
 .chrono-trend{font-size:16px}
 
@@ -239,13 +239,13 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
 .bsub{font-size:var(--fs-xs);color:var(--mid);margin-top:4px}
 
 /* ── SÉRIE CHRONO ── */
-.serie-chrono-big{font-family:'Syne',sans-serif;font-size:60px;font-weight:800;color:var(--navy);text-align:center;letter-spacing:2px;line-height:1;padding:16px 0 8px}
+.serie-chrono-big{font-family:'Inter',sans-serif;font-size:60px;font-weight:800;color:var(--navy);text-align:center;letter-spacing:0;line-height:1;padding:16px 0 8px}
 .serie-chrono-big.running{color:var(--g1)}
 .serie-eleve-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--gray)}
 .serie-eleve-row:last-child{border-bottom:none}
 .serie-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--lite);background:transparent;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:13px;transition:all .2s}
 .serie-check.sel{border-color:var(--teal);background:var(--teal);color:#fff}
-.serie-temps-badge{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--g3adk);background:var(--g3abg);padding:3px 9px;border-radius:8px}
+.serie-temps-badge{font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--g3adk);background:var(--g3abg);padding:3px 9px;border-radius:8px}
 .btn-arrivee{background:var(--teal);color:#fff;border:none;border-radius:var(--r-sm);padding:7px 13px;font-family:'DM Sans',sans-serif;font-size:var(--fs-md);font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap}
 .btn-arrivee:active{transform:scale(.95)}
 .btn-arrivee.done{background:var(--g3a)}
