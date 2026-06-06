@@ -92,6 +92,27 @@ function fmtDate(iso) {
 setInterval(() => { if(Object.keys(classes).length) save(); }, 30000);
 
 // ── NAVIGATION ───────────────────────────────
+function openModule(groupe) {
+  // Depuis l'accueil, naviguer directement vers le module
+  // Si une seule classe existe, l'ouvrir directement filtrée
+  const keys = Object.keys(classes);
+  if (keys.length === 1) {
+    openClass(keys[0]);
+    // Appliquer le filtre après un court délai
+    setTimeout(() => {
+      if (groupe==='1') filterGroup('1');
+      else if (groupe==='2') filterGroup('2');
+      else if (groupe==='3') filterGroup('3a');
+    }, 50);
+  } else if (keys.length === 0) {
+    showScreen('screen-import');
+  } else {
+    // Plusieurs classes → aller à la liste des classes
+    showScreen('screen-classes');
+    showToast('Sélectionne une classe');
+  }
+}
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const el = document.getElementById(id);
@@ -144,6 +165,7 @@ function makeStudent(d, idx) {
     note: (d.note||'').trim(),
     groupe: null, sousGroupe: null,
     etape: 0, criteres: {}, attitudes: {}, crawl: null,
+    presences: {},  // { 'AAAA-MM-JJ': 'present'|'absent'|'dispense'|'oubli_tenue' }
     evalsTech: [],   // [{ date, scores:{plongeon,coulee,...} }]
     chronos:   [],   // [{ date, temps }]
   };
@@ -306,13 +328,17 @@ function renderStudents() {
       : s.groupe==='2' ? 'Endurance · Nageur autonome'
       : s.groupe==='1' ? 'Savoir Nager · Non nageur'
       : etapeLabel(s);
-    return `<div class="stu-card ${gc}" onclick="openStudent('${s.id}')">
-      <div class="avatar ${avc}">${ini}</div>
-      <div style="flex:1;min-width:0">
-        <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
-        <div class="stu-sub">${sub}</div>
+    return `<div class="stu-card ${gc}" data-sid="${s.id}">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0" onclick="openStudent('${s.id}')">
+        <div class="avatar ${avc}">${ini}</div>
+        <div style="flex:1;min-width:0">
+          <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
+          <div class="stu-sub">${sub}</div>
+        </div>
       </div>
-      <span class="gpill ${pc}">${gl}</span>
+      <div style="display:flex;align-items:center;gap:7px;flex-shrink:0">
+        ${getPresenceBadge(s)}
+      </div>
     </div>`;
   }).join('');
 }
@@ -427,7 +453,7 @@ function renderStep1(el) {
         const v=s.attitudes[a.id];
         const cls=v===true?'ok':v===false?'ko':'';
         return `<div class="crit" onclick="toggleAttitude('${a.id}')">
-          <button class="ctog ${cls}" style="flex-shrink:0">${v===true?'✓':v===false?'✗':''}</button>
+          <button class="ctog ${cls}" data-att="${a.id}" style="flex-shrink:0">${v===true?'✓':v===false?'✗':''}</button>
           <div><div class="clabel">${a.label}</div><div class="csub">${a.sub}</div></div>
         </div>`;
       }).join('')}
@@ -445,14 +471,18 @@ function renderBannerG1(koCount, koAttitudes) {
     <div class="btitle">${msg}</div>
     <div class="bsub">Orientation Groupe 1 — Non nageur</div>
   </div>
-  <div class="ebtns"><button class="ebtn g1c" onclick="setG1()">Valider → Groupe 1</button></div>`;
+  <div class="ebtns">
+    <button id="btn-go-g1" class="ebtn g1c" onclick="setG1()">Valider → Savoir Nager G1</button>
+    <div id="btn-valider-sn" style="display:none"></div>
+  </div>`;
 }
 function renderBtnValiderSN(allDone, doneParcours, doneAttitudes) {
   const hint = !allDone ? '<br><small style="font-weight:400;font-size:12px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>' : '';
   return `<div class="ebtns">
-    <button class="ebtn teal" onclick="validerSN()" ${!allDone?'disabled':''}>
+    <button id="btn-valider-sn" class="ebtn teal" onclick="validerSN()" ${!allDone?'disabled':''}>
       ✓ Parcours validé — Étape suivante${hint}
     </button>
+    <div id="btn-go-g1" style="display:none"></div>
   </div>`;
 }
 function toggleSN(id) {
@@ -471,7 +501,36 @@ function toggleAttitude(id) {
   if (v===undefined||v===null) s.attitudes[id]=true;
   else if (v===true) s.attitudes[id]=false;
   else delete s.attitudes[id];
-  save(); renderEval();
+  save();
+
+  // Mise à jour visuelle SANS scroll (pas de renderEval)
+  const btn = document.querySelector('[data-att="'+id+'"]');
+  if (btn) {
+    const nv = s.attitudes[id];
+    btn.className = 'ctog' + (nv===true?' ok':nv===false?' ko':'');
+    btn.textContent = nv===true?'✓':nv===false?'✗':'';
+  }
+
+  // Recalcul allDone pour le bouton valider
+  const doneParcours  = Object.keys(s.criteres||{}).length;
+  const doneAttitudes = Object.keys(s.attitudes||{}).length;
+  const koCount       = CRITERES_SN.filter(c=>s.criteres[c.id]===false).length;
+  const koAtt         = ATTITUDES_SN.filter(a=>s.attitudes[a.id]===false).length;
+  const allDone       = doneParcours===9 && doneAttitudes===3;
+  const hasKo         = koCount>0 || koAtt>0;
+
+  const btnValider = document.getElementById('btn-valider-sn');
+  if (btnValider) {
+    if (hasKo) {
+      btnValider.style.display='none';
+      const btnG1 = document.getElementById('btn-go-g1');
+      if (btnG1) btnG1.style.display='block';
+    } else {
+      btnValider.disabled = !allDone;
+      btnValider.innerHTML = '✓ Parcours validé — Étape suivante'
+        + (!allDone ? '<br><small style="font-weight:400;font-size:12px">'+doneParcours+'/9 étapes · '+doneAttitudes+'/3 attitudes</small>' : '');
+    }
+  }
 }
 function setG1() { curStudent.groupe='1'; curStudent.etape=99; save(); refreshEvalHeader(); renderEval(); updateCounts(); showToast('✅ Orienté Savoir Nager G1'); }
 function validerSN() { curStudent.etape=2; save(); renderEval(); }
@@ -505,29 +564,30 @@ function setCrawl(v) {
   }
 }
 function renderStep3(el) {
+  // Le G3A/G3B est déterminé APRÈS l'éval technique — ici on oriente juste vers Vitesse
   el.innerHTML = `
     <div class="eval-card" style="margin-top:8px">
-      <div class="eval-card-title">🌊 Classement initial Groupe 3</div>
+      <div class="eval-card-title">🌊 Natation de Vitesse — Groupe 3</div>
       <p style="font-size:14px;color:var(--mid);line-height:1.6;margin-bottom:18px">
-        Sur ton observation directe, classe l'élève pour démarrer le cycle.
-        Tu pourras affiner via l'évaluation technique détaillée.
+        Crawl identifiable ✓<br>
+        L'élève est orienté en <strong>Natation de Vitesse</strong>.<br>
+        Le classement <strong>G3A / G3B</strong> se fera après l'évaluation technique détaillée.
       </p>
       <div class="ebtns">
-        <button class="ebtn g3a" onclick="setGroupe3('G3A')">
-          🌟 Vitesse G3A — Excellent nageur<br><small style="font-weight:400;font-size:12px">Nageur club · très bonne technique</small>
-        </button>
-        <button class="ebtn g3b" onclick="setGroupe3('G3B')">
-          🏊 Vitesse G3B — Nageur à affiner<br><small style="font-weight:400;font-size:12px">Crawl présent · technique à consolider</small>
+        <button class="ebtn teal" onclick="setGroupe3()">
+          ✓ Confirmer — Natation de Vitesse<br>
+          <small style="font-weight:400;font-size:12px">G3A / G3B défini après éval technique</small>
         </button>
         <button class="ebtn gray" onclick="retourE1()">← Retour</button>
       </div>
     </div>`;
 }
-function setGroupe3(sg) {
-  curStudent.groupe='3'; curStudent.sousGroupe=sg; curStudent.etape=99;
+function setGroupe3() {
+  curStudent.groupe='3'; curStudent.sousGroupe='G3B'; // défaut G3B, sera affiné par éval tech
+  curStudent.etape=99;
   if (!curStudent.evalsTech) curStudent.evalsTech=[];
   if (!curStudent.chronos) curStudent.chronos=[];
-  save(); updateCounts(); showToast(`✅ ${sg} attribué`);
+  save(); updateCounts(); showToast('✅ Orienté Natation de Vitesse');
   openFicheG3();
 }
 
@@ -835,6 +895,14 @@ function validerTechEval() {
   if (Object.keys(currentTechScores).length < 6) { showToast('⚠️ 6 critères requis'); return; }
   if (!curStudent.evalsTech) curStudent.evalsTech=[];
   curStudent.evalsTech.push({ date: today(), scores: {...currentTechScores} });
+  // Classement auto G3A/G3B selon score technique
+  const total = Object.values(currentTechScores).reduce((a,b)=>a+b,0);
+  const sgSuggere = total >= 9 ? 'G3A' : 'G3B';
+  const sgActuel  = curStudent.sousGroupe;
+  if (!sgActuel || sgActuel !== sgSuggere) {
+    // Proposer le reclassement si différent
+    curStudent._techSuggest = sgSuggere;
+  }
   save();
   showToast('✅ Évaluation technique enregistrée');
   openFicheG3();
@@ -974,6 +1042,113 @@ function fmtTime(s) {
   const sec = s%60;
   const min = Math.floor(s/60);
   return min>0 ? `${min}:${sec.toFixed(2).padStart(5,'0')}` : sec.toFixed(2).padStart(5,'0');
+}
+
+
+// ══════════════════════════════════════════════
+// PRÉSENCES
+// ══════════════════════════════════════════════
+const PRESENCE_OPTS = [
+  { val:'present',      ico:'✅', lbl:'Présent',      bg:'var(--g3abg)', fg:'var(--g3adk)' },
+  { val:'absent',       ico:'❌', lbl:'Absent',       bg:'var(--g1bg)',  fg:'var(--g1dk)'  },
+  { val:'dispense',     ico:'🩺', lbl:'Dispensé',     bg:'var(--g2bg)',  fg:'var(--g2dk)'  },
+  { val:'oubli_tenue',  ico:'👕', lbl:'Oubli tenue',  bg:'var(--pendbg)',fg:'var(--penddk)'},
+];
+
+function setPresence(studentId, val) {
+  const ss = classes[curClass]||[];
+  const eleve = ss.find(s=>String(s.id)===String(studentId));
+  if (!eleve) return;
+  if (!eleve.presences) eleve.presences={};
+  const dateKey = today();
+  if (eleve.presences[dateKey]===val) {
+    delete eleve.presences[dateKey]; // décocher si même valeur
+  } else {
+    eleve.presences[dateKey] = val;
+  }
+  save();
+
+  // Mise à jour visuelle sans scroll
+  const row = document.querySelector('[data-sid="'+studentId+'"]');
+  if (!row) return;
+  const opt = PRESENCE_OPTS.find(o=>o.val===eleve.presences[dateKey]);
+  const presEl = row.querySelector('.pres-badge');
+  if (presEl) {
+    if (opt) {
+      presEl.textContent = opt.ico+' '+opt.lbl;
+      presEl.style.background = opt.bg;
+      presEl.style.color = opt.fg;
+    } else {
+      presEl.textContent = '— Marquer';
+      presEl.style.background = 'var(--gray)';
+      presEl.style.color = 'var(--mid)';
+    }
+  }
+  // Mettre à jour le menu dropdown
+  const menu = document.querySelector('[data-menu="'+studentId+'"]');
+  if (menu) {
+    PRESENCE_OPTS.forEach(o => {
+      const btn = menu.querySelector('[data-pval="'+o.val+'"]');
+      if (btn) btn.style.fontWeight = (eleve.presences[dateKey]===o.val)?'700':'400';
+    });
+  }
+}
+
+function togglePresenceMenu(studentId) {
+  // Fermer tous les menus ouverts
+  document.querySelectorAll('.pres-menu').forEach(m => {
+    if (m.dataset.menu !== studentId) m.style.display='none';
+  });
+  const menu = document.querySelector('[data-menu="'+studentId+'"]');
+  if (menu) menu.style.display = menu.style.display==='block' ? 'none' : 'block';
+}
+
+// Fermer les menus si on clique ailleurs
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.pres-wrap')) {
+    document.querySelectorAll('.pres-menu').forEach(m=>m.style.display='none');
+  }
+});
+
+function getPresenceBadge(s) {
+  const dateKey = today();
+  const val = (s.presences||{})[dateKey];
+  const opt = PRESENCE_OPTS.find(o=>o.val===val);
+  const txt = opt ? opt.ico+' '+opt.lbl : '— Marquer';
+  const bg  = opt ? opt.bg : 'var(--gray)';
+  const fg  = opt ? opt.fg : 'var(--mid)';
+  return `<div class="pres-wrap" style="position:relative">
+    <button class="pres-badge" onclick="event.stopPropagation();togglePresenceMenu('${s.id}')"
+      style="background:${bg};color:${fg};border:none;border-radius:8px;padding:4px 9px;
+      font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">
+      ${txt}
+    </button>
+    <div class="pres-menu" data-menu="${s.id}"
+      style="display:none;position:absolute;right:0;top:100%;margin-top:4px;
+      background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(10,37,64,.15);
+      z-index:100;min-width:140px;overflow:hidden">
+      ${PRESENCE_OPTS.map(o=>`
+        <button data-pval="${o.val}" onclick="event.stopPropagation();setPresence('${s.id}','${o.val}')"
+          style="display:block;width:100%;text-align:left;padding:10px 14px;border:none;
+          background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;
+          font-weight:${val===o.val?'700':'400'};color:var(--navy)">
+          ${o.ico} ${o.lbl}
+        </button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function exportPresences() {
+  if (!curClass) return;
+  const ss = classes[curClass]||[];
+  const allDates = [...new Set(ss.flatMap(s=>Object.keys(s.presences||{})))].sort();
+  const rows = ss.map(s => {
+    const row = {nom:s.nom, prenom:s.prenom, classe:s.classe, groupe:s.sousGroupe||s.groupe||''};
+    allDates.forEach(d => { row[d] = (s.presences||{})[d] || ''; });
+    return row;
+  });
+  dlJSON(rows, 'presences_'+curClass+'_'+today()+'.json');
+  showToast('📤 Présences exportées');
 }
 
 // ── EXPORT ───────────────────────────────────
