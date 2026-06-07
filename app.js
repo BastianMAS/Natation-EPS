@@ -1935,8 +1935,9 @@ function bilanOpenFiche(id) {
   });
   const titleEl = document.getElementById('fiche-bilan-name');
   if (titleEl) titleEl.textContent = curStudent.prenom+' '+curStudent.nom;
-  renderFicheDetailBilan();
   showScreen('screen-fiche-bilan');
+  // Render après que l'écran est visible
+  setTimeout(() => renderFicheDetailBilan(), 10);
 }
 
 function renderFicheDetailBilan() {
@@ -2075,7 +2076,7 @@ function renderFicheDetailBilan() {
         onclick="mailFiche()">
         📧 Envoyer par mail
       </button>
-      <button class="ebtn gray" onclick="showScreen('screen-vit');switchModTab('vit','bilan')">← Retour au bilan</button>
+      <button class="ebtn gray" onclick="showScreen('screen-vit');setTimeout(()=>switchModTab('vit','bilan'),50)">← Retour au bilan</button>
     </div>`;
 }
 
