@@ -1029,10 +1029,15 @@ function importBackup(event) {
       }
       const nbClasses = Object.keys(data).filter(k=>k!=='_seancesDates').length;
       const nbEleves  = Object.values(data).filter(v=>Array.isArray(v)).flat().length;
+
+      // Remettre le modal dans son état normal avant d'appeler showModal
+      const btnOk    = document.getElementById('modal-ok');
+      const btnGhost = document.querySelector('.m-acts .btn-ghost');
+      if (btnOk)    { btnOk.style.display=''; btnOk.textContent='Confirmer'; }
+      if (btnGhost) { btnGhost.textContent='Annuler'; btnGhost.onclick=closeModal; }
+
       showModal(
-        `Restaurer ce backup ?
-${nbClasses} classe(s) · ${nbEleves} élève(s)
-Les données actuelles seront remplacées.`,
+        'Restaurer ce backup ? '+nbClasses+' classe(s) · '+nbEleves+' élève(s). Les données actuelles seront remplacées.',
         () => {
           classes = data;
           if (!classes._seancesDates) classes._seancesDates = seancesDates;
@@ -1103,7 +1108,9 @@ function showBackups(){
   document.querySelector('.m-acts .btn-ghost').textContent = 'Fermer';
   document.querySelector('.m-acts .btn-ghost').onclick = () => {
     closeModal();
+    // Remettre les boutons dans leur état normal
     document.getElementById('modal-ok').style.display = '';
+    document.getElementById('modal-ok').textContent = 'Confirmer';
     document.querySelector('.m-acts .btn-ghost').textContent = 'Annuler';
     document.querySelector('.m-acts .btn-ghost').onclick = closeModal;
   };
