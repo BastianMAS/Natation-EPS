@@ -120,6 +120,7 @@ function renderModuleTab(mod, tab) {
   if (tab==='eleves') renderModuleEleves(mod, el);
   else if (tab==='presences') renderPresencesTable(mod, el);
   else if (tab==='serie') { renderSerieInline(el); }
+  else if (tab==='bilan') renderBilanVitesse(el);
 }
 
 function updateHomeCounts() {
@@ -212,9 +213,12 @@ function etapeLabel(s) {
 function renderPresencesTable(mod, el) {
   const ss = getModuleStudents(mod).sort((a,b)=>a.nom.localeCompare(b.nom));
 
-  // Collecter toutes les dates existantes + aujourd'hui
-  const datesSet = new Set([today()]);
+  // Collecter les dates existantes (présences + séances créées manuellement)
+  const datesSet = new Set();
   ss.forEach(s=>Object.keys(s.presences||{}).forEach(d=>datesSet.add(d)));
+  // Ajouter les séances créées manuellement (même sans présence cochée)
+  if (classes._seancesDates && classes._seancesDates[mod])
+    classes._seancesDates[mod].forEach(d=>datesSet.add(d));
   const dates = [...datesSet].sort();
 
   if (!ss.length) {
@@ -222,37 +226,115 @@ function renderPresencesTable(mod, el) {
     return;
   }
 
-  const PRES_CYCLE = ['','P','A','D','T'];
-
   el.innerHTML = `
-    <p style="font-size:11px;color:var(--mid);margin-bottom:10px">
-      Appuyer sur une case pour faire défiler : <strong>—→P→A→D→T→—</strong>
-    </p>
+    <!-- Bouton nouvelle séance -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <button onclick="presNouvSeance('${mod}')"
+        style="background:var(--teal);color:#fff;border:none;border-radius:10px;
+        padding:10px 16px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+        ＋ Nouvelle séance
+      </button>
+      ${dates.length?`<span style="font-size:11px;color:var(--mid)">${dates.length} séance${dates.length>1?'s':''} enregistrée${dates.length>1?'s':''}</span>`:'<span style="font-size:11px;color:var(--mid)">Aucune séance encore</span>'}
+    </div>
+
+    ${!dates.length ? `
+    <div class="eval-card" style="text-align:center;padding:24px">
+      <div style="font-size:32px;margin-bottom:8px">📋</div>
+      <p style="font-size:13px;color:var(--mid)">Aucune séance enregistrée.<br>Appuie sur <strong>+ Nouvelle séance</strong> pour commencer l'appel.</p>
+    </div>` : `
     <div class="pres-table-wrap">
       <table class="pres-table">
         <thead>
           <tr>
             <th class="name-col">Élève</th>
-            ${dates.map(d=>`<th>${fmtDate(d)}${d===today()?'<br><span style="font-size:9px;opacity:.7">auj.</span>':''}</th>`).join('')}
+            ${dates.map(d=>`<th>
+              <div>${fmtDate(d)}</div>
+              <button onclick="presDelColonne('${mod}','${d}')"
+                title="Supprimer cette séance"
+                style="background:rgba(255,255,255,.15);border:none;color:rgba(255,255,255,.7);
+                border-radius:4px;padding:1px 5px;font-size:10px;cursor:pointer;margin-top:3px">✕</button>
+            </th>`).join('')}
           </tr>
         </thead>
         <tbody>
           ${ss.map(s=>`
             <tr>
-              <td class="name-col">${s.prenom} ${s.nom}</td>
+              <td class="name-col">
+                <div>${s.prenom} ${s.nom}</div>
+              </td>
               ${dates.map(d=>{
                 const val=(s.presences||{})[d]||'';
                 const pv = PRESENCE_VALS.find(p=>p.val===val);
+                const lbl = pv ? pv.ico+' '+pv.lbl : '—';
                 const cls = pv ? 'pres-btn '+pv.cls : 'pres-btn pb-empty';
-                return `<td><button class="${cls}" onclick="cyclePresence('${s.id}','${d}')">${val||'—'}</button></td>`;
+                return `<td><button class="${cls}" onclick="cyclePresence('${s.id}','${d}')">${lbl}</button></td>`;
               }).join('')}
             </tr>`).join('')}
         </tbody>
       </table>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${PRESENCE_VALS.map(p=>`<span style="background:${p.cls.replace('pb-p','var(--g3abg)').replace('pb-a','var(--g1bg)').replace('pb-d','var(--g2bg)').replace('pb-t','var(--pendbg)')};padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700">${p.val} = ${p.lbl}</span>`).join('')}
+    </div>`}
+
+    <!-- Légende -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      ${PRESENCE_VALS.map(p=>`
+        <span style="background:${p.cls==='pb-p'?'var(--g3abg)':p.cls==='pb-a'?'var(--g1bg)':p.cls==='pb-d'?'var(--g2bg)':'var(--pendbg)'};
+          color:${p.cls==='pb-p'?'var(--g3adk)':p.cls==='pb-a'?'var(--g1dk)':p.cls==='pb-d'?'var(--g2dk)':'var(--penddk)'};
+          padding:3px 10px;border-radius:8px;font-size:11px;font-weight:600">
+          ${p.ico} ${p.lbl}
+        </span>`).join('')}
+      <span style="font-size:11px;color:var(--mid);margin-left:4px;align-self:center">→ cliquer pour changer</span>
     </div>`;
+}
+
+function presNouvSeance(mod) {
+  // Modal avec sélecteur de date
+  const d = today();
+  document.getElementById('modal-msg').innerHTML = `
+    <div style="text-align:left">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--navy);margin-bottom:12px">
+        Nouvelle séance
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:12px;font-weight:600;color:var(--mid);display:block;margin-bottom:6px">Date de la séance</label>
+        <input type="date" id="pres-date-input" value="${d}"
+          style="width:100%;padding:10px;border:2px solid var(--teal);border-radius:10px;
+          font-family:'DM Sans',sans-serif;font-size:15px;color:var(--navy);background:#fff;outline:none">
+      </div>
+    </div>`;
+  document.getElementById('modal-ok').textContent = 'Créer la séance';
+  document.getElementById('modal-ok').onclick = () => {
+    closeModal();
+    const input = document.getElementById('pres-date-input');
+    const dateVal = input ? input.value : d;
+    if (!dateVal) { showToast('Date invalide'); return; }
+    // Initialiser la présence pour tous les élèves du module (vide = non marqué)
+    const ss = getModuleStudents(mod);
+    ss.forEach(s => { if (!s.presences) s.presences={}; });
+    save();
+    // Ajouter la date et re-render (la colonne apparaît vide)
+    // On stocke la date pour que la colonne existe même sans présence marquée
+    // On utilise un élève fantôme... non : on ajoute la date dans un Set global par module
+    if (!classes._seancesDates) classes._seancesDates = {};
+    if (!classes._seancesDates[mod]) classes._seancesDates[mod] = [];
+    if (!classes._seancesDates[mod].includes(dateVal)) classes._seancesDates[mod].push(dateVal);
+    save();
+    showToast('✅ Séance du '+fmtDateLong(dateVal)+' créée');
+    switchModTab(mod, 'presences');
+  };
+  document.querySelector('.m-acts .btn-ghost').onclick = closeModal;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function presDelColonne(mod, dateKey) {
+  showModal('Supprimer la séance du '+fmtDateLong(dateKey)+' ? Toutes les présences de cette date seront effacées.', () => {
+    const ss = getModuleStudents(mod);
+    ss.forEach(s => { if (s.presences) delete s.presences[dateKey]; });
+    if (classes._seancesDates && classes._seancesDates[mod])
+      classes._seancesDates[mod] = classes._seancesDates[mod].filter(d=>d!==dateKey);
+    save();
+    switchModTab(mod, 'presences');
+    showToast('Séance supprimée');
+  });
 }
 
 function cyclePresence(studentId, dateKey) {
@@ -1244,10 +1326,6 @@ function renderEFStep2(el) {
     <div class="eval-card">
       <div class="eval-card-title">
         📋 Grille — ${actif?actif.prenom+' '+actif.nom:''}
-        <span id="ef-filled-badge" style="margin-left:auto;font-size:11px;font-weight:700;
-          color:${filled===EVAL_CRITERES.length?'var(--g3adk)':'var(--mid)'};
-          background:${filled===EVAL_CRITERES.length?'var(--g3abg)':'var(--gray)'};
-          padding:2px 8px;border-radius:8px">${filled}/${EVAL_CRITERES.length}</span>
       </div>
       ${EVAL_CRITERES.map(c => {
         const sel = grille[c.id];
@@ -1305,16 +1383,6 @@ function efSetNiveau(eleveId, critId, niv) {
     btn.style.color       = isSel ? fgMap[bNiv] : 'var(--mid)';
     btn.style.fontWeight  = isSel ? '700' : '400';
   });
-
-  // Mettre à jour le badge filled
-  const g = evalState.grilles[eleveId]||{};
-  const filled = EVAL_CRITERES.filter(c=>g[c.id]).length;
-  const badge = document.getElementById('ef-filled-badge');
-  if (badge) {
-    badge.textContent = filled+'/'+EVAL_CRITERES.length;
-    badge.style.color      = filled===EVAL_CRITERES.length ? 'var(--g3adk)' : 'var(--mid)';
-    badge.style.background = filled===EVAL_CRITERES.length ? 'var(--g3abg)' : 'var(--gray)';
-  }
 
   // Activer bouton valider si tout rempli
   const allFilled = evalState.selectedIds.every(id => {
@@ -1458,19 +1526,38 @@ function renderEFStep3(el) {
             <div style="font-size:10px;font-weight:700">/20</div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px">
+        <!-- Détail complet et uniforme -->
+        <div style="display:flex;flex-direction:column;gap:4px">
           ${[
-            {lbl:'Chrono',   val:chrono?chrono+'s':'—'},
-            {lbl:'Perf /3.5',val:perf},
-            {lbl:'Prog /2',  val:prog},
-            {lbl:'Tech',     val:tech.toFixed(2)},
-          ].map(x=>`<div style="background:var(--gray);border-radius:7px;padding:6px;text-align:center">
-            <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${x.val}</div>
-            <div style="font-size:9px;color:var(--mid)">${x.lbl}</div>
-          </div>`).join('')}
+            {ico:'⏱', lbl:'Chrono 25m NL',          val:chrono?chrono+'s':'—',     max:'',    bold:true},
+            {ico:'🎯', lbl:'Performance',              val:perf,                      max:'/3.5 pts'},
+            {ico:'📈', lbl:'Progression',              val:prog,                      max:'/2 pts',
+              sub:ts?'(réf: '+ts+'s)':'⚠️ Pas de T1 référence'},
+          ].map(x=>`
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
+              <span style="font-size:14px;width:20px">${x.ico}</span>
+              <span style="font-size:12px;color:var(--mid);flex:1">${x.lbl}${x.sub?'<br><span style="font-size:10px;color:var(--lite)">'+x.sub+'</span>':''}</span>
+              <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${x.val} <span style="font-size:10px;font-weight:400;color:var(--mid)">${x.max}</span></span>
+            </div>`).join('')}
+          ${EVAL_CRITERES.map(c=>{
+            const niv = grille[c.id];
+            const pts = niv ? (c.niveaux.find(n=>n.n===niv)?.pts||0) : 0;
+            const txt = niv ? c.niveaux.find(n=>n.n===niv)?.txt : '—';
+            const icoNiv = niv===4?'🟢':niv===3?'🟡':niv===2?'🟠':'🔴';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
+              <span style="font-size:14px;width:20px">${c.ico}</span>
+              <span style="font-size:12px;color:var(--mid);flex:1">${c.lbl}<br>
+                <span style="font-size:10px;color:var(--lite)">${icoNiv} ${txt||'—'}</span>
+              </span>
+              <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${pts} <span style="font-size:10px;font-weight:400;color:var(--mid)">/${c.max} pt${c.max>1?'s':''}</span></span>
+            </div>`;
+          }).join('')}
+          ${plongeoir?`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
+            <span style="font-size:14px;width:20px">🤿</span>
+            <span style="font-size:12px;color:var(--mid);flex:1">Bonus plongeoir</span>
+            <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--g3adk)">+0.5 pts</span>
+          </div>`:''}
         </div>
-        ${plongeoir?'<div style="font-size:11px;color:var(--g3adk);font-weight:600">+0.5 bonus plongeoir</div>':''}
-        ${ts?'<div style="font-size:11px;color:var(--mid)">Chrono référence (T1) : '+ts+'s</div>':'<div style="font-size:11px;color:var(--g2dk)">⚠️ Pas de chrono référence → progression non calculée</div>'}
       </div>`;
     }).join('')}
     <div class="ebtns">
@@ -1604,6 +1691,136 @@ function siValider() {
   switchModTab('vit', 'serie');
 }
 
+
+
+// ══════════════════════════════════════════════
+// BILAN MODULE VITESSE
+// ══════════════════════════════════════════════
+function renderBilanVitesse(el) {
+  const all = Object.values(classes).flat();
+  const ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>{
+    // Trier G3A d'abord puis G3B, puis alphabétique
+    if (a.sousGroupe==='G3A' && b.sousGroupe!=='G3A') return -1;
+    if (a.sousGroupe!=='G3A' && b.sousGroupe==='G3A') return 1;
+    return a.nom.localeCompare(b.nom);
+  });
+
+  if (!ss.length) {
+    el.innerHTML = `<div class="empty"><div class="eico">📊</div><h3>Aucun élève G3</h3></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--navy);margin-bottom:4px">
+        Bilan du cycle — Natation de Vitesse
+      </div>
+      <div style="font-size:12px;color:var(--mid)">${ss.length} élève${ss.length>1?'s':''} · ${ss.filter(s=>s.sousGroupe==='G3A').length} G3A · ${ss.filter(s=>s.sousGroupe==='G3B').length} G3B</div>
+    </div>
+
+    ${['G3A','G3B'].map(groupe => {
+      const group = ss.filter(s=>s.sousGroupe===groupe);
+      if (!group.length) return '';
+      return `
+        <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;
+          color:${groupe==='G3A'?'var(--g3adk)':'var(--g3bdk)'};
+          background:${groupe==='G3A'?'var(--g3abg)':'var(--g3bbg)'};
+          padding:7px 12px;border-radius:10px;margin-bottom:8px">
+          ${groupe==='G3A'?'🌟':'🏊'} ${groupe} — ${group.length} élève${group.length>1?'s':''}
+        </div>
+        ${group.map(s => {
+          const evals   = s.evalsTech||[];
+          const chronos = s.chronos||[];
+          const lastEval   = evals.length ? evals[evals.length-1] : null;
+          const firstEval  = evals.length ? evals[0] : null;
+          const bestChrono = chronos.length ? Math.min(...chronos.map(c=>c.temps)) : null;
+          const lastChrono = chronos.length ? chronos[chronos.length-1] : null;
+          const refChrono  = getChronoRef(s);
+          const progChrono = refChrono && lastChrono ? refChrono - lastChrono.temps : null;
+
+          const scoreLast  = lastEval  ? Object.values(lastEval.scores).reduce((a,b)=>a+b,0) : null;
+          const scoreFirst = firstEval ? Object.values(firstEval.scores).reduce((a,b)=>a+b,0) : null;
+          const progTech   = scoreLast!==null && scoreFirst!==null ? scoreLast-scoreFirst : null;
+
+          // Note finale (dernière éval + dernier chrono)
+          const noteFinale = lastEval && lastChrono
+            ? calcNoteFinale(s, lastChrono.temps, lastEval.scores, lastEval.plongeoir||false)
+            : null;
+
+          const nc = noteFinale ? (noteFinale>=16?'var(--g3adk)':noteFinale>=12?'var(--g3bdk)':noteFinale>=8?'var(--g2dk)':'var(--g1dk)') : 'var(--mid)';
+          const nb = noteFinale ? (noteFinale>=16?'var(--g3abg)':noteFinale>=12?'var(--g3bbg)':noteFinale>=8?'var(--g2bg)':'var(--g1bg)') : 'var(--gray)';
+
+          return `<div class="hist-card" style="margin-bottom:8px;border-left-color:${groupe==='G3A'?'var(--g3a)':'var(--g3b)'}">
+            <!-- Header élève -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div>
+                <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--navy)">${s.prenom} ${s.nom}</div>
+                <div style="font-size:11px;color:var(--mid)">${s.classe}${s.note?' · ⚡ '+s.note:''}</div>
+              </div>
+              ${noteFinale!==null ? `
+              <div style="background:${nb};color:${nc};border-radius:10px;padding:7px 12px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:22px;font-weight:800;line-height:1">${noteFinale}</div>
+                <div style="font-size:9px;font-weight:700">/20</div>
+              </div>` : `
+              <div style="background:var(--gray);color:var(--mid);border-radius:10px;padding:7px 12px;text-align:center;font-size:11px">
+                Pas d'éval<br>complète
+              </div>`}
+            </div>
+
+            <!-- Stats chronos -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">
+              <div style="background:var(--gray);border-radius:7px;padding:6px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${refChrono?refChrono+'s':'—'}</div>
+                <div style="font-size:9px;color:var(--mid)">T1 référence</div>
+              </div>
+              <div style="background:var(--gray);border-radius:7px;padding:6px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${bestChrono?bestChrono+'s':'—'}</div>
+                <div style="font-size:9px;color:var(--mid)">Meilleur 25m</div>
+              </div>
+              <div style="background:${progChrono>0?'var(--g3abg)':progChrono<0?'var(--g1bg)':'var(--gray)'};border-radius:7px;padding:6px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:${progChrono>0?'var(--g3adk)':progChrono<0?'var(--g1dk)':'var(--mid)'}">
+                  ${progChrono!==null?(progChrono>0?'−'+progChrono.toFixed(2):'+'+Math.abs(progChrono).toFixed(2))+'s':'—'}
+                </div>
+                <div style="font-size:9px;color:var(--mid)">Évolution</div>
+              </div>
+            </div>
+
+            <!-- Stats technique -->
+            ${evals.length ? `
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:6px">
+              <div style="background:var(--gray);border-radius:7px;padding:6px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${evals.length}</div>
+                <div style="font-size:9px;color:var(--mid)">Éval${evals.length>1?'s':''} tech</div>
+              </div>
+              <div style="background:var(--gray);border-radius:7px;padding:6px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${scoreLast!==null?scoreLast.toFixed(1):'-'}/16.5</div>
+                <div style="font-size:9px;color:var(--mid)">Score tech</div>
+              </div>
+              <div style="background:${progTech>0?'var(--g3abg)':progTech<0?'var(--g1bg)':'var(--gray)'};border-radius:7px;padding:6px;text-align:center">
+                <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:${progTech>0?'var(--g3adk)':progTech<0?'var(--g1dk)':'var(--mid)'}">
+                  ${progTech!==null?(progTech>0?'+':'')+progTech.toFixed(1):'—'}
+                </div>
+                <div style="font-size:9px;color:var(--mid)">Prog. tech</div>
+              </div>
+            </div>` : '<div style="font-size:11px;color:var(--mid);margin-bottom:6px">Pas encore d\'évaluation technique</div>'}
+
+            <!-- Actions rapides -->
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button onclick="openStudent('${s.id}')"
+                style="flex:1;background:var(--navy);color:#fff;border:none;border-radius:8px;
+                padding:7px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">
+                📋 Fiche complète
+              </button>
+              <button onclick="curStudent=Object.values(classes).flat().find(e=>String(e.id)==='${s.id}');openTechEval()"
+                style="flex:1;background:var(--teal);color:#fff;border:none;border-radius:8px;
+                padding:7px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">
+                ➕ Éval technique
+              </button>
+            </div>
+          </div>`;
+        }).join('')}`;
+    }).join('')}`;
+}
 
 // ── INIT ─────────────────────────────────────
 load();
