@@ -995,16 +995,133 @@ function downloadSample(){
 }
 
 // ── EXPORT ───────────────────────────────────
-function exportAll(){dlJSON(classes,'natation_backup_'+today()+'.json');showToast('💾 Backup téléchargé');}
+function exportAll(){
+  // Export complet avec toutes les données
+  const data = {
+    version: '4.0',
+    date: today(),
+    classes: classes,
+    seancesDates: classes._seancesDates || {},
+  };
+  dlJSON(data, 'natation_backup_'+today()+'.json');
+  showToast('💾 Backup téléchargé');
+}
+
+function importBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const raw = JSON.parse(e.target.result);
+      // Accepter 2 formats : ancien (objet classes direct) ou nouveau (avec version)
+      let data, seancesDates = {};
+      if (raw.version && raw.classes) {
+        data = raw.classes;
+        seancesDates = raw.seancesDates || {};
+      } else if (typeof raw === 'object' && !Array.isArray(raw)) {
+        data = raw;
+      } else {
+        showToast('❌ Format JSON invalide');
+        return;
+      }
+      const nbClasses = Object.keys(data).filter(k=>k!=='_seancesDates').length;
+      const nbEleves  = Object.values(data).filter(v=>Array.isArray(v)).flat().length;
+      showModal(
+        `Restaurer ce backup ?
+${nbClasses} classe(s) · ${nbEleves} élève(s)
+Les données actuelles seront remplacées.`,
+        () => {
+          classes = data;
+          if (!classes._seancesDates) classes._seancesDates = seancesDates;
+          save();
+          renderClasses();
+          updateHomeCounts();
+          showToast('✅ Backup restauré — '+nbEleves+' élève(s)');
+        }
+      );
+    } catch(e) {
+      console.error(e);
+      showToast('❌ Fichier JSON invalide');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
 function dlJSON(data,name){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function showBackups(){
-  const baks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('natation_bak_'))baks.push(k);}
-  if(!baks.length){showToast('Aucun backup');return;}baks.sort().reverse();
-  const latest=baks[0],date=latest.replace('natation_bak_','');
-  showModal('Restaurer le backup du '+date+' ?',()=>{try{classes=JSON.parse(localStorage.getItem(latest));save();renderClasses();updateHomeCounts();showToast('✅ Restauré');}catch(e){showToast('❌ Erreur');}});
+  // Lister les backups auto disponibles
+  const baks=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('natation_bak_'))baks.push(k);
+  }
+  baks.sort().reverse();
+
+  // Construire le message
+  const bakMsg = baks.length
+    ? 'Backups automatiques disponibles :\n'+baks.slice(0,5).map(k=>'• '+k.replace('natation_bak_','')).join('\n')
+    : 'Aucun backup automatique disponible.';
+
+  document.getElementById('modal-msg').innerHTML = `
+    <div style="text-align:left">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--navy);margin-bottom:12px">
+        Restaurer les données
+      </div>
+      <div style="margin-bottom:14px">
+        <button onclick="document.getElementById('backup-file-input').click()"
+          style="width:100%;background:var(--teal);color:#fff;border:none;border-radius:10px;
+          padding:12px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:8px">
+          📂 Charger un fichier JSON
+        </button>
+        <input type="file" id="backup-file-input" accept=".json" style="display:none"
+          onchange="closeModal();importBackup(event)">
+      </div>
+      ${baks.length ? `
+      <div style="border-top:1px solid var(--gray);padding-top:12px">
+        <div style="font-size:12px;font-weight:600;color:var(--mid);margin-bottom:8px">BACKUPS AUTOMATIQUES</div>
+        ${baks.slice(0,5).map(k=>{
+          const date = k.replace('natation_bak_','');
+          return `<div style="display:flex;align-items:center;justify-content:space-between;
+            padding:7px 0;border-bottom:1px solid var(--gray)">
+            <span style="font-size:13px;color:var(--navy)">📅 ${date}</span>
+            <button onclick="closeModal();restoreBak('${k}')"
+              style="background:var(--navy);color:#fff;border:none;border-radius:7px;
+              padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">
+              Restaurer
+            </button>
+          </div>`;
+        }).join('')}
+      </div>` : `<div style="font-size:13px;color:var(--mid);text-align:center;padding:8px 0">Aucun backup automatique</div>`}
+    </div>`;
+  document.getElementById('modal-ok').style.display = 'none';
+  document.querySelector('.m-acts .btn-ghost').textContent = 'Fermer';
+  document.querySelector('.m-acts .btn-ghost').onclick = () => {
+    closeModal();
+    document.getElementById('modal-ok').style.display = '';
+    document.querySelector('.m-acts .btn-ghost').textContent = 'Annuler';
+    document.querySelector('.m-acts .btn-ghost').onclick = closeModal;
+  };
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function restoreBak(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key));
+    // Ancien format = objet classes direct
+    if (raw.version && raw.classes) {
+      classes = raw.classes;
+      if (!classes._seancesDates) classes._seancesDates = raw.seancesDates||{};
+    } else {
+      classes = raw;
+    }
+    save(); renderClasses(); updateHomeCounts();
+    showToast('✅ Backup du '+key.replace('natation_bak_','')+' restauré');
+  } catch(e) { showToast('❌ Erreur restauration'); }
 }
 
 // ── MODAL / TOAST ─────────────────────────────
