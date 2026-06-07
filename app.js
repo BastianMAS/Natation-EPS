@@ -933,6 +933,472 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 // ── SW ────────────────────────────────────────
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
+
+// ══════════════════════════════════════════════
+// ÉVALUATION FINALE VITESSE — iDocéo style
+// ══════════════════════════════════════════════
+
+const EVAL_CRITERES = [
+  { id:'entree',       lbl:"Entrée dans l'eau", max:2,
+    niveaux:[
+      {n:1, ico:'🔴', txt:'Plat · tête relevée · bruit impact',           pts:0.5},
+      {n:2, ico:'🟠', txt:'Entrée de côté · semi-gainé',                   pts:1.0},
+      {n:3, ico:'🟡', txt:'Gainé · axe correct · légère déviation',        pts:1.5},
+      {n:4, ico:'🟢', txt:"Gainé · axe parfait · entrée silencieuse",      pts:2.0},
+    ]},
+  { id:'coulee',       lbl:'Coulée', max:1,
+    niveaux:[
+      {n:1, ico:'🔴', txt:"Remontée immédiate · reprise brasse sous l'eau",pts:0.25},
+      {n:2, ico:'🟠', txt:'Courte 2-4m · corps désaxé',                    pts:0.5},
+      {n:3, ico:'🟡', txt:'5-7m · horizontal · quelques corrections',       pts:0.75},
+      {n:4, ico:'🟢', txt:"≥ 7m · corps horizontal · bras tendus",         pts:1.0},
+    ]},
+  { id:'propulsion',   lbl:'Propulsion (bras)', max:4,
+    niveaux:[
+      {n:1, ico:'🔴', txt:'Bras en surface · croisé · pas de propulsion',  pts:1.0},
+      {n:2, ico:'🟠', txt:'Traction courte (ventre) · recouvrement bas',   pts:2.0},
+      {n:3, ico:'🟡', txt:'Traction correcte · recouvrement moyen',         pts:3.0},
+      {n:4, ico:'🟢', txt:"Traction cuisse · recouvrement haut · efficace", pts:4.0},
+    ]},
+  { id:'equilibre',    lbl:'Équilibre', max:2,
+    niveaux:[
+      {n:1, ico:'🔴', txt:"Vertical · jambes profondes · marche dans l'eau",pts:0.5},
+      {n:2, ico:'🟠', txt:'Bassin semi-immergé · position en Z',            pts:1.0},
+      {n:3, ico:'🟡', txt:'Quasi-horizontal · légère désaxation',           pts:1.5},
+      {n:4, ico:'🟢', txt:'Bassin haut · parfaitement horizontal',          pts:2.0},
+    ]},
+  { id:'respiration',  lbl:'Respiration', max:2,
+    niveaux:[
+      {n:1, ico:'🔴', txt:'Tête hors eau · apnée',                         pts:0.5},
+      {n:2, ico:'🟠', txt:'Tête se soulève · rotation tardive',             pts:1.0},
+      {n:3, ico:'🟡', txt:'Rotation latérale · rythme irrégulier',          pts:1.5},
+      {n:4, ico:'🟢', txt:"Rotation dans l'axe · expiration eau · rythmée",pts:2.0},
+    ]},
+  { id:'coordination', lbl:'Coordination', max:2,
+    niveaux:[
+      {n:1, ico:'🔴', txt:'Jambes arrêtées · ciseau · battement brasse',   pts:0.5},
+      {n:2, ico:'🟠', txt:'Irrégulier · pauses · genoux cassés',            pts:1.0},
+      {n:3, ico:'🟡', txt:'Battements présents · quelques irrégularités',   pts:1.5},
+      {n:4, ico:'🟢', txt:'6 battements/cycle · régulier · continu',        pts:2.0},
+    ]},
+];
+
+// Barème perf temps différencié par tranche
+function perfNote(t) {
+  if (!t) return 0.25;
+  if (t <= 18)  return 3.5;
+  if (t <= 21)  return 2.75;
+  if (t <= 23)  return 2.25;
+  if (t <= 25)  return 1.75;
+  if (t <= 28)  return 1.25;
+  if (t <= 30)  return 0.75;
+  return 0.25;
+}
+
+// Barème progression différencié par tranche de niveau (temps final)
+function progNote(ts, tf) {
+  if (!ts || !tf) return 0.25;
+  const pct = (ts - tf) / ts * 100;
+  if (tf <= 20) {
+    if (pct >= 2)   return 2.0;
+    if (pct >= 1)   return 1.5;
+    if (pct >= 0.5) return 1.0;
+    if (pct > 0)    return 0.5;
+    return 0.25;
+  } else if (tf <= 23) {
+    if (pct >= 5)   return 2.0;
+    if (pct >= 3)   return 1.5;
+    if (pct >= 1.5) return 1.0;
+    if (pct >= 0.5) return 0.5;
+    return 0.25;
+  } else if (tf <= 26) {
+    if (pct >= 10)  return 2.0;
+    if (pct >= 6)   return 1.5;
+    if (pct >= 3)   return 1.0;
+    if (pct >= 1)   return 0.5;
+    return 0.25;
+  } else {
+    if (pct >= 15)  return 2.0;
+    if (pct >= 10)  return 1.5;
+    if (pct >= 5)   return 1.0;
+    if (pct >= 2)   return 0.5;
+    return 0.25;
+  }
+}
+
+function calcNoteFinale(eleve, chrono, grille, plongeoir) {
+  const perf = perfNote(chrono);
+  const ts   = eleve.chronos && eleve.chronos.length > 0
+    ? eleve.chronos[0].temps   // premier chrono = référence de départ du cycle
+    : null;
+  const prog = progNote(ts, chrono);
+  const invest = 1.5;
+  const bonus  = plongeoir ? 0.5 : 0;
+  const tech   = EVAL_CRITERES.reduce((sum, c) => {
+    const niv = grille[c.id];
+    const pts = niv ? c.niveaux.find(n => n.n === niv)?.pts || 0 : 0;
+    return sum + pts;
+  }, 0);
+  return Math.min(20, Math.round((perf + prog + invest + tech + bonus) * 100) / 100);
+}
+
+// ── État éval finale ──
+let evalState = {
+  step: 1,               // 1=sélection, 2=chrono+grille, 3=résumé
+  selectedIds: [],
+  chrono: { running: false, startMs: 0, elapsed: 0, timer: null },
+  temps: {},             // { id: secondes }
+  grilles: {},           // { id: { entree:N, coulee:N, ... } }
+  plongeoir: {},         // { id: true|false }
+  eleveActif: null,      // id de l'élève dont on remplit la grille
+};
+
+function openEvalFinale() {
+  evalState = {
+    step:1, selectedIds:[], temps:{}, grilles:{}, plongeoir:{}, eleveActif:null,
+    chrono:{ running:false, startMs:0, elapsed:0, timer:null }
+  };
+  renderEvalFinale();
+  showScreen('screen-eval-finale');
+}
+
+function renderEvalFinale() {
+  const el = document.getElementById('eval-finale-body');
+  if (!el) return;
+  if (evalState.step === 1) renderEFStep1(el);
+  else if (evalState.step === 2) renderEFStep2(el);
+  else renderEFStep3(el);
+}
+
+// ── ÉTAPE 1 : Sélection élèves ──
+function renderEFStep1(el) {
+  const all = Object.values(classes).flat();
+  const g3  = all.filter(s => s.groupe === '3').sort((a,b) => a.nom.localeCompare(b.nom));
+
+  el.innerHTML = `
+    <div class="ef-steps">
+      <div class="ef-step cur">1 Série</div>
+      <div class="ef-step">2 Éval</div>
+      <div class="ef-step">3 Résumé</div>
+    </div>
+    <div class="eval-card">
+      <div class="eval-card-title">🏊 Sélectionner les élèves de la série <span style="font-size:11px;font-weight:400;color:var(--mid)">(1 à 4)</span></div>
+      ${g3.length === 0 ? '<p style="color:var(--mid);font-size:13px">Aucun élève G3 dans les classes importées.</p>' :
+        g3.map(s => {
+          const sel = evalState.selectedIds.includes(s.id);
+          const lastChrono = s.chronos && s.chronos.length ? s.chronos[s.chronos.length-1].temps : null;
+          return `<div class="serie-eleve-row">
+            <button class="serie-check ${sel?'sel':''}" onclick="efToggleEleve('${s.id}')">${sel?'✓':''}</button>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
+              <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'}${lastChrono?' · Dernier chrono: '+lastChrono+'s':' · Pas de chrono'}</div>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>
+    <div class="ebtns">
+      <button class="ebtn teal" onclick="efGoStep2()" ${evalState.selectedIds.length===0?'disabled':''}>
+        ▶ Lancer la série (${evalState.selectedIds.length} élève${evalState.selectedIds.length>1?'s':''})
+      </button>
+    </div>`;
+}
+
+function efToggleEleve(id) {
+  const idx = evalState.selectedIds.indexOf(id);
+  if (idx >= 0) evalState.selectedIds.splice(idx, 1);
+  else {
+    if (evalState.selectedIds.length >= 4) { showToast('Maximum 4 élèves'); return; }
+    evalState.selectedIds.push(id);
+    if (!evalState.grilles[id]) evalState.grilles[id] = {};
+    if (evalState.plongeoir[id] === undefined) evalState.plongeoir[id] = false;
+  }
+  if (evalState.selectedIds.length > 0 && !evalState.eleveActif)
+    evalState.eleveActif = evalState.selectedIds[0];
+  renderEvalFinale();
+}
+
+function efGoStep2() {
+  if (!evalState.selectedIds.length) return;
+  evalState.step = 2;
+  evalState.eleveActif = evalState.selectedIds[0];
+  renderEvalFinale();
+}
+
+// ── ÉTAPE 2 : Chrono + Grille ──
+function renderEFStep2(el) {
+  const all    = Object.values(classes).flat();
+  const eleves = evalState.selectedIds.map(id => all.find(s => String(s.id)===String(id))).filter(Boolean);
+  const actif  = all.find(s => String(s.id)===String(evalState.eleveActif));
+  const grille = evalState.grilles[evalState.eleveActif] || {};
+  const filled = EVAL_CRITERES.filter(c => grille[c.id]).length;
+  const chrono = evalState.chrono;
+
+  el.innerHTML = `
+    <div class="ef-steps">
+      <div class="ef-step done">1 Série</div>
+      <div class="ef-step cur">2 Éval</div>
+      <div class="ef-step">3 Résumé</div>
+    </div>
+
+    <!-- Chrono -->
+    <div class="card" style="text-align:center;padding:14px">
+      <div id="ef-chrono" class="serie-chrono-big ${chrono.running?'running':''}">${fmtTime(chrono.elapsed)}</div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button onclick="efToggleChrono()" style="flex:1;background:${chrono.running?'var(--g1)':'var(--g3a)'};color:#fff;border:none;border-radius:10px;padding:12px;font-size:16px;font-weight:700;cursor:pointer">
+          ${chrono.running?'⏹ Stop':'▶ Go'}
+        </button>
+        <button onclick="efResetChrono()" style="background:var(--gray);color:var(--mid);border:none;border-radius:10px;padding:12px 16px;font-size:16px;cursor:pointer">↺</button>
+      </div>
+      <!-- Boutons arrivée par élève -->
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;justify-content:center">
+        ${eleves.map(s => {
+          const t = evalState.temps[s.id];
+          return `<button onclick="efCapture('${s.id}')"
+            style="background:${t?'var(--g3abg)':'var(--navy2)'};color:${t?'var(--g3adk)':'#fff'};
+            border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer">
+            ${t ? '✓ '+t+'s' : '🏁 '+s.prenom}
+          </button>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Sélecteur élève actif -->
+    <div style="display:flex;gap:6px;margin-bottom:8px;overflow-x:auto">
+      ${eleves.map(s => {
+        const g = evalState.grilles[s.id]||{};
+        const done = EVAL_CRITERES.filter(c=>g[c.id]).length;
+        const isActif = String(s.id)===String(evalState.eleveActif);
+        return `<button onclick="efSetActif('${s.id}')"
+          style="flex-shrink:0;padding:7px 12px;border-radius:10px;border:2px solid ${isActif?'var(--teal)':'transparent'};
+          background:${isActif?'var(--teal)':'#fff'};color:${isActif?'#fff':'var(--navy)'};
+          font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;
+          box-shadow:0 1px 4px rgba(10,37,64,.1)">
+          ${s.prenom}<br><span style="font-size:10px;opacity:.8">${done}/6 ${evalState.temps[s.id]?'⏱'+evalState.temps[s.id]+'s':''}</span>
+        </button>`;
+      }).join('')}
+    </div>
+
+    <!-- Type de départ -->
+    <div class="card" style="padding:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--mid);margin-bottom:8px">TYPE DE DÉPART — ${actif?actif.prenom:''}</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="efSetPlongeoir('${evalState.eleveActif}',false)"
+          style="flex:1;padding:10px;border-radius:10px;border:2px solid ${!evalState.plongeoir[evalState.eleveActif]?'var(--navy)':'var(--lite)'};
+          background:${!evalState.plongeoir[evalState.eleveActif]?'var(--navy)':'#fff'};
+          color:${!evalState.plongeoir[evalState.eleveActif]?'#fff':'var(--mid)'};
+          font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">
+          🏊 Bord
+        </button>
+        <button onclick="efSetPlongeoir('${evalState.eleveActif}',true)"
+          style="flex:1;padding:10px;border-radius:10px;border:2px solid ${evalState.plongeoir[evalState.eleveActif]?'var(--g3a)':'var(--lite)'};
+          background:${evalState.plongeoir[evalState.eleveActif]?'var(--g3abg)':'#fff'};
+          color:${evalState.plongeoir[evalState.eleveActif]?'var(--g3adk)':'var(--mid)'};
+          font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">
+          🤿 Plongeoir <span style="font-size:10px">(+0.5)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Grille technique -->
+    <div class="eval-card">
+      <div class="eval-card-title">📋 Grille technique — ${actif?actif.prenom+' '+actif.nom:''} <span style="font-size:11px;font-weight:400;color:var(--mid)">${filled}/6</span></div>
+      ${EVAL_CRITERES.map(c => {
+        const sel = grille[c.id];
+        return `<div class="crit-block">
+          <div class="crit-name">${c.lbl} <span style="font-size:10px;color:var(--mid);font-weight:400">/${c.max} pts</span></div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            ${c.niveaux.map(niv => {
+              const isSel = sel === niv.n;
+              const bgMap = {1:'var(--ko)',2:'#FFE8D6',3:'var(--partial)',4:'var(--ok)'};
+              const fgMap = {1:'var(--kofg)',2:'#9A3412',3:'var(--partfg)',4:'var(--okfg)'};
+              return `<button onclick="efSetNiveau('${evalState.eleveActif}','${c.id}',${niv.n})"
+                data-ef-crit="${c.id}" data-ef-niv="${niv.n}"
+                style="border:none;border-radius:8px;padding:8px 10px;text-align:left;
+                font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;
+                display:flex;align-items:center;gap:7px;
+                background:${isSel?bgMap[niv.n]:'var(--gray)'};
+                color:${isSel?fgMap[niv.n]:'var(--mid)'};
+                font-weight:${isSel?'700':'400'}">
+                ${niv.ico} <span>N${niv.n} — ${niv.txt}</span>
+                <span style="margin-left:auto;font-family:'Inter',sans-serif;font-size:11px;font-weight:700">${niv.pts} pt${niv.pts>1?'s':''}</span>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="ebtns">
+      <button class="ebtn teal" onclick="efGoStep3()"
+        ${evalState.selectedIds.every(id=>{const g=evalState.grilles[id]||{};return EVAL_CRITERES.every(c=>g[c.id]);})?'':'disabled'}>
+        ✅ Valider l'évaluation
+      </button>
+      <button class="ebtn gray" onclick="evalState.step=1;renderEvalFinale()">← Retour</button>
+    </div>`;
+}
+
+function efToggleChrono() {
+  const c = evalState.chrono;
+  if (c.running) {
+    clearInterval(c.timer); c.running = false;
+  } else {
+    c.startMs = Date.now() - c.elapsed*1000; c.running = true;
+    c.timer = setInterval(() => {
+      c.elapsed = (Date.now()-c.startMs)/1000;
+      const el = document.getElementById('ef-chrono');
+      if (el) { el.textContent = fmtTime(c.elapsed); el.classList.add('running'); }
+    }, 50);
+  }
+  renderEvalFinale();
+}
+
+function efResetChrono() {
+  clearInterval(evalState.chrono.timer);
+  evalState.chrono = { running:false, startMs:0, elapsed:0, timer:null };
+  renderEvalFinale();
+}
+
+function efCapture(id) {
+  evalState.temps[id] = Math.round(evalState.chrono.elapsed * 100) / 100;
+  evalState.eleveActif = id;
+  renderEvalFinale();
+}
+
+function efSetActif(id) {
+  evalState.eleveActif = id;
+  renderEvalFinale();
+}
+
+function efSetPlongeoir(id, val) {
+  evalState.plongeoir[id] = val;
+  renderEvalFinale();
+}
+
+function efSetNiveau(id, critId, niv) {
+  if (!evalState.grilles[id]) evalState.grilles[id] = {};
+  evalState.grilles[id][critId] = niv;
+  // Mise à jour visuelle sans scroll
+  document.querySelectorAll(`[data-ef-crit="${critId}"]`).forEach(btn => {
+    const bNiv = parseInt(btn.dataset.efNiv);
+    const isSel = bNiv === niv;
+    const bgMap = {1:'var(--ko)',2:'#FFE8D6',3:'var(--partial)',4:'var(--ok)'};
+    const fgMap = {1:'var(--kofg)',2:'#9A3412',3:'var(--partfg)',4:'var(--okfg)'};
+    btn.style.background = isSel ? bgMap[bNiv] : 'var(--gray)';
+    btn.style.color      = isSel ? fgMap[bNiv] : 'var(--mid)';
+    btn.style.fontWeight = isSel ? '700' : '400';
+  });
+  // Mettre à jour le compteur
+  const g = evalState.grilles[id]||{};
+  const done = EVAL_CRITERES.filter(c=>g[c.id]).length;
+  // Activer bouton valider si tout est rempli
+  const btnValider = document.querySelector('#eval-finale-body .ebtn.teal');
+  if (btnValider) {
+    const allDone = evalState.selectedIds.every(sid => {
+      const gr = evalState.grilles[sid]||{};
+      return EVAL_CRITERES.every(c => gr[c.id]);
+    });
+    btnValider.disabled = !allDone;
+  }
+  // Mettre à jour le badge du sélecteur
+  const tabBtn = document.querySelector(`[onclick="efSetActif('${id}')"]`);
+  if (tabBtn) {
+    const t = evalState.temps[id];
+    tabBtn.innerHTML = `${document.querySelector(`[onclick="efSetActif('${id}')"]`)?.innerHTML.split('<br>')[0]||''}<br><span style="font-size:10px;opacity:.8">${done}/6 ${t?'⏱'+t+'s':''}</span>`;
+  }
+  save();
+}
+
+// ── ÉTAPE 3 : Résumé + Enregistrement ──
+function efGoStep3() {
+  // Enregistrer les chronos dans les fiches élèves
+  const all = Object.values(classes).flat();
+  const dateAuj = today();
+  evalState.selectedIds.forEach(id => {
+    const eleve = all.find(s => String(s.id)===String(id));
+    if (!eleve) return;
+    if (!eleve.chronos) eleve.chronos = [];
+    if (evalState.temps[id]) eleve.chronos.push({ date:dateAuj, temps:evalState.temps[id] });
+    // Enregistrer la grille dans evalsTech
+    if (!eleve.evalsTech) eleve.evalsTech = [];
+    const grille = evalState.grilles[id]||{};
+    const scores = {};
+    EVAL_CRITERES.forEach(c => { scores[c.id] = c.niveaux.find(n=>n.n===grille[c.id])?.pts||0; });
+    eleve.evalsTech.push({ date:dateAuj, scores, plongeoir: evalState.plongeoir[id]||false });
+    // G3A/G3B auto
+    const total = Object.values(scores).reduce((a,b)=>a+b,0);
+    eleve._techSuggest = total >= 11 ? 'G3A' : 'G3B';
+  });
+  save();
+  evalState.step = 3;
+  renderEvalFinale();
+}
+
+function renderEFStep3(el) {
+  const all = Object.values(classes).flat();
+  el.innerHTML = `
+    <div class="ef-steps">
+      <div class="ef-step done">1 Série</div>
+      <div class="ef-step done">2 Éval</div>
+      <div class="ef-step cur">3 Résumé</div>
+    </div>
+    ${evalState.selectedIds.map(id => {
+      const eleve = all.find(s => String(s.id)===String(id));
+      if (!eleve) return '';
+      const chrono   = evalState.temps[id];
+      const grille   = evalState.grilles[id]||{};
+      const plongeoir= evalState.plongeoir[id]||false;
+      const note     = calcNoteFinale(eleve, chrono, grille, plongeoir);
+      const noteColor= note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)';
+      const noteBg   = note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)';
+
+      // Détail
+      const ts    = eleve.chronos && eleve.chronos.length > 0 ? eleve.chronos[0].temps : null; // premier chrono = T1 de référence
+      const perf  = perfNote(chrono);
+      const prog  = progNote(ts, chrono);
+      const tech  = EVAL_CRITERES.reduce((sum,c)=>{
+        const pts = c.niveaux.find(n=>n.n===grille[c.id])?.pts||0;
+        return sum+pts;
+      },0);
+
+      return `<div class="hist-card" style="border-left-color:${noteColor}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--navy)">${eleve.prenom} ${eleve.nom}</div>
+            <div style="font-size:11px;color:var(--mid)">${eleve.sousGroupe||'G3'} · ${plongeoir?'Plongeoir 🤿':'Bord 🏊'}</div>
+          </div>
+          <div style="background:${noteBg};color:${noteColor};border-radius:12px;padding:8px 14px;text-align:center">
+            <div style="font-family:'Inter',sans-serif;font-size:26px;font-weight:800;line-height:1">${note}</div>
+            <div style="font-size:10px;font-weight:700">/20</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+          <div style="background:var(--gray);border-radius:8px;padding:7px;text-align:center">
+            <div style="font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">${chrono?chrono+'s':'—'}</div>
+            <div style="font-size:10px;color:var(--mid)">Chrono</div>
+          </div>
+          <div style="background:var(--gray);border-radius:8px;padding:7px;text-align:center">
+            <div style="font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">${perf}/3.5</div>
+            <div style="font-size:10px;color:var(--mid)">Perf</div>
+          </div>
+          <div style="background:var(--gray);border-radius:8px;padding:7px;text-align:center">
+            <div style="font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">${prog}/2</div>
+            <div style="font-size:10px;color:var(--mid)">Progression</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--mid);display:flex;gap:10px;flex-wrap:wrap">
+          <span>Tech: ${tech}/13.5</span>
+          <span>Invest: 1.5/1.5</span>
+          ${plongeoir?'<span style="color:var(--g3adk)">Bonus plongeoir: +0.5</span>':''}
+        </div>
+      </div>`;
+    }).join('')}
+
+    <div class="ebtns" style="margin-top:4px">
+      <button class="ebtn teal" onclick="openModule('vit')">✓ Terminer — Retour au module</button>
+      <button class="ebtn gray" onclick="openEvalFinale()">↺ Nouvelle série</button>
+    </div>`;
+}
+
 // ── INIT ─────────────────────────────────────
 load();
 updateHomeCounts();
