@@ -1000,6 +1000,14 @@ const EVAL_CRITERES = [
 
 // Total max technique sans perf/prog = 2+1+4+2+2+2+1.5+2 = 16.5 → + perf 3.5 + prog 2 = 22 pts brut → plafonné à 20
 
+// Retourne le temps du chrono le plus ancien (référence éval diag initiale)
+function getChronoRef(eleve) {
+  if (!eleve.chronos || !eleve.chronos.length) return null;
+  // Trier par date croissante et prendre le premier
+  const sorted = [...eleve.chronos].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  return sorted[0].temps;
+}
+
 function perfNote(t) {
   if (!t) return 0.25;
   if (t <= 18)  return 3.5;
@@ -1031,7 +1039,7 @@ function progNote(ts, tf) {
 
 function calcNoteFinale(eleve, chrono, grille, plongeoir) {
   const perf   = perfNote(chrono);
-  const ts     = eleve.chronos && eleve.chronos.length > 0 ? eleve.chronos[0].temps : null;
+  const ts     = getChronoRef(eleve); // premier chrono par date (éval diag initiale)
   const prog   = progNote(ts, chrono);
   const bonus  = plongeoir ? 0.5 : 0;
   const tech   = EVAL_CRITERES.reduce((sum, c) => {
@@ -1433,7 +1441,7 @@ function renderEFStep3(el) {
       const note      = calcNoteFinale(eleve, chrono, grille, plongeoir);
       const nc = note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)';
       const nb = note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)';
-      const ts   = eleve.chronos&&eleve.chronos.length>0?eleve.chronos[0].temps:null;
+      const ts   = getChronoRef(eleve); // premier chrono par date (éval diag initiale)
       const perf = perfNote(chrono);
       const prog = progNote(ts, chrono);
       const tech = EVAL_CRITERES.reduce((sum,c)=>{
@@ -1473,62 +1481,127 @@ function renderEFStep3(el) {
 
 // ── Série inline dans l'onglet ──
 function renderSerieInline(el) {
+  // Utilise l'objet serie global mais avec IDs dédiés pour ne pas confliter
   const all = Object.values(classes).flat();
   const ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+  const cID = 'si-chrono'; // IDs uniques pour la serie inline
+
   el.innerHTML = `
     <div class="card" style="text-align:center;padding:14px">
-      <div id="serie-time" class="serie-chrono-big ${serie.running?'running':''}">${fmtTime(serie.elapsed)}</div>
+      <div id="${cID}" class="serie-chrono-big ${serie.running?'running':''}">${fmtTime(serie.elapsed)}</div>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button id="btn-start-inline" onclick="toggleChronoInline(el)"
+        <button id="si-btn-go"
+          onclick="siToggleChrono()"
           style="flex:1;background:${serie.running?'var(--g1)':'var(--g3a)'};color:#fff;border:none;
           border-radius:10px;padding:12px;font-size:16px;font-weight:700;cursor:pointer">
           ${serie.running?'⏹ Stop':'▶ Go'}
         </button>
-        <button onclick="resetSerieInline()"
+        <button onclick="siReset()"
           style="background:var(--gray);color:var(--mid);border:none;
           border-radius:10px;padding:12px 16px;font-size:16px;cursor:pointer">↺</button>
       </div>
     </div>
     <div class="card">
-      <div class="eval-card-title">🏊 Nageurs <span style="font-size:11px;font-weight:400;color:var(--mid)">(1-4 max)</span></div>
-      ${!ss.length?'<p style="font-size:13px;color:var(--mid)">Aucun élève G3.</p>':ss.map(s=>{
-        const sel=serie.selectedIds.includes(s.id);
-        const t=serie.temps[s.id];
-        return `<div class="serie-eleve-row">
-          <button class="serie-check ${sel?'sel':''}" onclick="toggleSerieEleve('${s.id}')">${sel?'✓':''}</button>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
-            <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'}</div>
-          </div>
-          ${sel?`${t?`<span class="serie-temps-badge">${t}s</span>`:''}
-          <button class="btn-arrivee ${t?'done':''}" onclick="captureTps('${s.id}')">${t?'✓ '+t+'s':'🏁 Arrivée'}</button>`:''}
-        </div>`;
-      }).join('')}
+      <div class="eval-card-title">🏊 Nageurs
+        <span style="font-size:11px;font-weight:400;color:var(--mid)">(1-4 max)</span>
+      </div>
+      ${!ss.length ? '<p style="font-size:13px;color:var(--mid)">Aucun élève G3.</p>' :
+        ss.map(s => {
+          const sel = serie.selectedIds.includes(s.id);
+          const t   = serie.temps[s.id];
+          return `<div class="serie-eleve-row">
+            <button class="serie-check ${sel?'sel':''}"
+              onclick="siToggleEleve('${s.id}')">${sel?'✓':''}</button>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
+              <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'}</div>
+            </div>
+            ${sel ? `
+              ${t ? `<span class="serie-temps-badge">${t}s</span>` : ''}
+              <button class="btn-arrivee ${t?'done':''}" onclick="siCapture('${s.id}')">
+                ${t ? '✓ '+t+'s' : '🏁 Arrivée'}
+              </button>` : ''}
+          </div>`;
+        }).join('')}
     </div>
-    ${Object.keys(serie.temps).length?`<div class="ebtns">
-      <button class="ebtn g3a" onclick="validerTemps();switchModTab('vit','serie')">
-        ✅ Enregistrer ${Object.keys(serie.temps).length} temps
-      </button></div>`:''}`;
+    ${Object.keys(serie.temps).length ? `
+    <div class="ebtns">
+      <button class="ebtn g3a" onclick="siValider()">
+        ✅ Enregistrer ${Object.keys(serie.temps).length} temps dans les fiches
+      </button>
+    </div>` : ''}`;
 }
 
-function toggleChronoInline() {
+function siToggleChrono() {
   if (serie.running) {
-    clearInterval(serie.timer); serie.running=false;
+    clearInterval(serie.timer); serie.running = false;
   } else {
-    serie.startMs=Date.now()-serie.elapsed*1000; serie.running=true;
-    serie.timer=setInterval(()=>{
-      serie.elapsed=(Date.now()-serie.startMs)/1000;
-      const el=document.getElementById('serie-time');
-      if(el){el.textContent=fmtTime(serie.elapsed);el.classList.add('running');}
-    },50);
+    serie.startMs = Date.now() - serie.elapsed * 1000;
+    serie.running = true;
+    serie.timer = setInterval(() => {
+      serie.elapsed = (Date.now() - serie.startMs) / 1000;
+      const el = document.getElementById('si-chrono');
+      if (el) { el.textContent = fmtTime(serie.elapsed); el.classList.add('running'); }
+    }, 50);
   }
-  const btn=document.getElementById('btn-start-inline');
-  if(btn){btn.textContent=serie.running?'⏹ Stop':'▶ Go';btn.style.background=serie.running?'var(--g1)':'var(--g3a)';}
+  const btn = document.getElementById('si-btn-go');
+  if (btn) {
+    btn.textContent = serie.running ? '⏹ Stop' : '▶ Go';
+    btn.style.background = serie.running ? 'var(--g1)' : 'var(--g3a)';
+  }
 }
 
-function resetSerieInline() {
-  clearInterval(serie.timer);serie.running=false;serie.elapsed=0;serie.temps={};
-  switchModTab('vit','serie');
+function siToggleEleve(id) {
+  const idx = serie.selectedIds.indexOf(id);
+  if (idx >= 0) { serie.selectedIds.splice(idx, 1); delete serie.temps[id]; }
+  else {
+    if (serie.selectedIds.length >= 4) { showToast('Maximum 4 élèves'); return; }
+    serie.selectedIds.push(id);
+  }
+  switchModTab('vit', 'serie');
+}
+
+function siCapture(id) {
+  serie.temps[id] = Math.round(serie.elapsed * 100) / 100;
+  // Mise à jour visuelle sans recréer
+  const btn = document.querySelector(`[onclick="siCapture('${id}')"]`);
+  if (btn) { btn.textContent = '✓ '+serie.temps[id]+'s'; btn.classList.add('done'); }
+  // Mettre à jour le badge du sélecteur
+  const selBtn = document.querySelector(`[onclick="siToggleEleve('${id}')"]`);
+  // Ajouter le bouton "Enregistrer" si pas déjà là
+  const body = document.getElementById('vit-body');
+  if (body && !body.querySelector('.ebtn.g3a')) {
+    const div = document.createElement('div');
+    div.className = 'ebtns'; div.style.marginTop = '8px';
+    div.innerHTML = `<button class="ebtn g3a" onclick="siValider()">
+      ✅ Enregistrer les temps dans les fiches
+    </button>`;
+    body.appendChild(div);
+  }
+}
+
+function siReset() {
+  clearInterval(serie.timer);
+  serie.running = false; serie.elapsed = 0; serie.temps = {};
+  serie.selectedIds = [];
+  switchModTab('vit', 'serie');
+}
+
+function siValider() {
+  const all = Object.values(classes).flat();
+  let count = 0;
+  Object.entries(serie.temps).forEach(([id, t]) => {
+    const e = all.find(s => String(s.id) === String(id));
+    if (e) {
+      if (!e.chronos) e.chronos = [];
+      e.chronos.push({ date: today(), temps: t });
+      count++;
+    }
+  });
+  save();
+  serie.temps = {}; serie.selectedIds = [];
+  showToast('✅ ' + count + ' temps enregistré' + (count > 1 ? 's' : ''));
+  switchModTab('vit', 'serie');
 }
 
 
