@@ -1600,13 +1600,13 @@ function efGoStep3() {
     if (!eleve.chronos)   eleve.chronos   = [];
     if (!eleve.evalsTech) eleve.evalsTech = [];
     if (evalState.temps[id])
-      eleve.chronos.push({ date:dateAuj, temps:evalState.temps[id] });
+      eleve.chronos.push({ date:dateAuj, temps:evalState.temps[id], type:'finale' });
     const grille = evalState.grilles[id]||{};
     const scores = {};
     EVAL_CRITERES.forEach(c => {
       scores[c.id] = c.niveaux.find(n=>n.n===grille[c.id])?.pts || 0;
     });
-    eleve.evalsTech.push({ date:dateAuj, scores, plongeoir:evalState.plongeoir[id]||false });
+    eleve.evalsTech.push({ date:dateAuj, scores, plongeoir:evalState.plongeoir[id]||false, type:'finale' });
     // Suggestion G3A/G3B
     const techScore = Object.values(scores).reduce((a,b)=>a+b,0);
     eleve._techSuggest = techScore >= 12 ? 'G3A' : 'G3B';
@@ -1838,10 +1838,13 @@ function renderBilanVitesse(el) {
     const evals     = s.evalsTech||[];
     const presences = s.presences||{};
     const t1        = getChronoRef(s);
-    const best      = chronos.length ? Math.min(...chronos.map(c=>c.temps)) : null;
-    const last      = chronos.length ? chronos[chronos.length-1].temps : null;
+    // Uniquement chronos et evals de type finale (pas diagnostique)
+    const chronosFinale = chronos.filter(c=>c.type==='finale');
+    const evalsFinale   = evals.filter(e=>e.type==='finale');
+    const best      = chronosFinale.length ? Math.min(...chronosFinale.map(c=>c.temps)) : null;
+    const last      = chronosFinale.length ? chronosFinale[chronosFinale.length-1].temps : null;
     const evol      = t1&&last ? t1-last : null;
-    const lastEval  = evals.length ? evals[evals.length-1] : null;
+    const lastEval  = evalsFinale.length ? evalsFinale[evalsFinale.length-1] : null;
     const note      = lastEval&&last ? calcNoteFinale(s,last,lastEval.scores,lastEval.plongeoir||false) : null;
     // Compter présences
     const nbPres    = Object.values(presences).filter(v=>v==='P').length;
@@ -1911,7 +1914,7 @@ function renderBilanVitesse(el) {
           <div style="font-size:8px;font-weight:700">/20</div>
         </div>
         <!-- Bouton fiche -->
-        <button onclick="bilanOpenFiche('${s.id}')"
+        <button class="btn-open-fiche" data-eid="${s.id}"
           style="background:var(--navy);color:#fff;border:none;border-radius:8px;
           padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">
           Fiche →
@@ -1936,8 +1939,7 @@ function bilanOpenFiche(id) {
   const titleEl = document.getElementById('fiche-bilan-name');
   if (titleEl) titleEl.textContent = curStudent.prenom+' '+curStudent.nom;
   showScreen('screen-fiche-bilan');
-  // Render après que l'écran est visible
-  setTimeout(() => renderFicheDetailBilan(), 10);
+  renderFicheDetailBilan();
 }
 
 function renderFicheDetailBilan() {
@@ -1949,10 +1951,13 @@ function renderFicheDetailBilan() {
   const presences = s.presences||{};
   const t1        = getChronoRef(s);
   const best      = chronos.length ? Math.min(...chronos.map(c=>c.temps)) : null;
-  const last      = chronos.length ? chronos[chronos.length-1] : null;
-  const evol      = t1&&last ? (t1-last.temps).toFixed(2) : null;
-  const lastEval  = evals.length ? evals[evals.length-1] : null;
-  const note      = lastEval&&last ? calcNoteFinale(s,last.temps,lastEval.scores,lastEval.plongeoir||false) : null;
+  // Chrono et éval finale uniquement (pas diagnostique)
+  const last           = chronos.filter(c=>c.type!=='diag').slice(-1)[0]||null;
+  const evol           = t1&&last ? (t1-last.temps).toFixed(2) : null;
+  const lastEvalFinale = evals.filter(e=>e.type!=='diag').slice(-1)[0]||null;
+  const note           = lastEvalFinale&&last
+    ? calcNoteFinale(s, last.temps, lastEvalFinale.scores, lastEvalFinale.plongeoir||false)
+    : null;
 
   // Présences
   const presVals   = Object.values(presences);
@@ -2083,12 +2088,14 @@ function renderFicheDetailBilan() {
 function mailFiche() {
   const s = curStudent;
   if (!s) return;
-  const chronos = s.chronos||[];
-  const evals   = s.evalsTech||[];
-  const t1      = getChronoRef(s);
-  const best    = chronos.length ? Math.min(...chronos.map(c=>c.temps)) : null;
-  const last    = chronos.length ? chronos[chronos.length-1] : null;
-  const lastEval= evals.length ? evals[evals.length-1] : null;
+  const chronos        = s.chronos||[];
+  const evals          = s.evalsTech||[];
+  const t1             = getChronoRef(s);
+  const chronosFinale  = chronos.filter(c=>c.type==='finale');
+  const evalsFinale    = evals.filter(e=>e.type==='finale');
+  const best    = chronosFinale.length ? Math.min(...chronosFinale.map(c=>c.temps)) : null;
+  const last    = chronosFinale.length ? chronosFinale[chronosFinale.length-1] : null;
+  const lastEval= evalsFinale.length ? evalsFinale[evalsFinale.length-1] : null;
   const note    = lastEval&&last ? calcNoteFinale(s,last.temps,lastEval.scores,lastEval.plongeoir||false) : null;
 
   const sujet = encodeURIComponent(`Fiche natation — ${s.prenom} ${s.nom} — ${s.classe}`);
@@ -2413,3 +2420,11 @@ function renderDiagStep3(el){
 // ── INIT ─────────────────────────────────────
 load();
 updateHomeCounts();
+
+// Délégation d'événement globale pour les boutons fiche bilan
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-open-fiche');
+  if (btn && btn.dataset.eid) {
+    bilanOpenFiche(btn.dataset.eid);
+  }
+});
