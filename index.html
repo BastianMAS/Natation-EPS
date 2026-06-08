@@ -270,6 +270,17 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
 .hidden{display:none!important}
 
 @media print {
+  .screen { display:none!important; }
+  #screen-fiche-bilan { display:flex!important;flex-direction:column;position:static!important;
+    transform:none!important;visibility:visible!important;height:auto!important;overflow:visible!important; }
+  #screen-fiche-bilan .hdr { display:none!important; }
+  #screen-fiche-bilan .body { overflow:visible!important;padding:16px!important; }
+  #fiche-actions { display:none!important; }
+  * { -webkit-print-color-adjust:exact!important;print-color-adjust:exact!important; }
+}
+
+
+@media print {
   .screen:not(#screen-fiche-bilan) { display:none!important; }
   #screen-fiche-bilan { position:static!important;transform:none!important;visibility:visible!important; }
   .hdr,.ebtns { display:none!important; }
@@ -416,6 +427,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
     <button class="mod-tab" id="vit-tab-serie" onclick="switchModTab('vit','serie')">🏁 Série</button>
     <button class="mod-tab" id="vit-tab-diag" onclick="switchModTab('vit','diag')">🔍 Éval Diag</button>
     <button class="mod-tab" id="vit-tab-eval" onclick="openEvalFinale()">📋 Éval Finale</button>
+    <button class="mod-tab" id="vit-tab-bilan" onclick="switchModTab('vit','bilan')">📊 Bilan</button>
   </div>
   <div class="body" id="vit-body"></div>
 </div>
@@ -470,6 +482,16 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   <div class="body" id="eval-finale-body"></div>
 </div>
 
+
+
+<!-- ══ FICHE BILAN ÉLÈVE ══ -->
+<div id="screen-fiche-bilan" class="screen">
+  <div class="hdr vit">
+    <button class="btn-back" onclick="showScreen('screen-vit');setTimeout(()=>switchModTab('vit','bilan'),50)">←</button>
+    <h2 id="fiche-bilan-name">Fiche élève</h2>
+  </div>
+  <div class="body" id="fiche-bilan-body"></div>
+</div>
 
 <!-- ══ MODAL ══ -->
 <div id="modal" class="modal hidden">

@@ -121,6 +121,7 @@ function renderModuleTab(mod, tab) {
   else if (tab==='presences') renderPresencesTable(mod, el);
   else if (tab==='serie') { renderSerieInline(el); }
   else if (tab==='diag')  renderEvalDiag(el);
+  else if (tab==='bilan') renderBilanVitesse(el);
 
 }
 
@@ -1617,8 +1618,61 @@ function efGoStep3() {
 }
 
 // ── ÉTAPE 3 : Résumé ──
+function efDetailHTML(eleve, chrono, grille, plongeoir) {
+  const note    = calcNoteFinale(eleve, chrono, grille, plongeoir);
+  const nc      = note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)';
+  const nb      = note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)';
+  const ts      = getChronoRef(eleve);
+  const perf    = perfNote(chrono);
+  const prog    = progNote(ts, chrono);
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--mid)">${eleve.sousGroupe||'G3'} · ${plongeoir?'🤿 Plongeoir (+0.5)':'🏊 Bord'}</div>
+      <div style="background:${nb};color:${nc};border-radius:10px;padding:6px 14px;text-align:center">
+        <div style="font-family:'Inter',sans-serif;font-size:26px;font-weight:800;line-height:1">${note}</div>
+        <div style="font-size:9px;font-weight:700">/20</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0">
+      ${[
+        {ico:'⏱', lbl:'Chrono 25m NL',  val:chrono?chrono+'s':'—',  max:'',        sub:''},
+        {ico:'🎯', lbl:'Performance',     val:perf,                   max:'/3.5 pts',sub:''},
+        {ico:'📈', lbl:'Progression',     val:prog,                   max:'/2 pts',  sub:ts?'réf: '+ts+'s':'⚠️ Pas de T1'},
+      ].map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray)">
+        <span style="width:18px;text-align:center">${x.ico}</span>
+        <span style="flex:1;font-size:12px;color:var(--mid)">${x.lbl}${x.sub?'<br><span style="font-size:10px;color:var(--lite)">'+x.sub+'</span>':''}</span>
+        <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${x.val}<span style="font-size:10px;font-weight:400;color:var(--mid)"> ${x.max}</span></span>
+      </div>`).join('')}
+      ${EVAL_CRITERES.map(c=>{
+        const niv    = grille[c.id];
+        const pts    = niv ? (c.niveaux.find(n=>n.n===niv)?.pts||0) : 0;
+        const txt    = niv ? c.niveaux.find(n=>n.n===niv)?.txt : '—';
+        const icoNiv = niv===4?'🟢':niv===3?'🟡':niv===2?'🟠':'🔴';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray)">
+          <span style="width:18px;text-align:center">${c.ico}</span>
+          <span style="flex:1;font-size:12px;color:var(--mid)">${c.lbl}<br><span style="font-size:10px;color:var(--lite)">${icoNiv} ${txt}</span></span>
+          <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${pts}<span style="font-size:10px;font-weight:400;color:var(--mid)"> /${c.max}pt${c.max>1?'s':''}</span></span>
+        </div>`;
+      }).join('')}
+      ${plongeoir?`<div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+        <span style="width:18px;text-align:center">🤿</span>
+        <span style="flex:1;font-size:12px;color:var(--mid)">Bonus plongeoir</span>
+        <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--g3adk)">+0.5 pts</span>
+      </div>`:''}
+    </div>`;
+}
+
+function efToggleAccordeon(id) {
+  window._efOpenId = (window._efOpenId===id) ? null : id;
+  const el = document.getElementById('eval-finale-body');
+  if (el) renderEFStep3(el);
+}
+
 function renderEFStep3(el) {
   const all = Object.values(classes).flat();
+  if (!window._efOpenId && evalState.selectedIds.length)
+    window._efOpenId = evalState.selectedIds[0];
+
   el.innerHTML = `
     <div class="ef-steps">
       <div class="ef-step done">1 · Sélection</div>
@@ -1626,66 +1680,43 @@ function renderEFStep3(el) {
       <div class="ef-step cur">3 · Résumé</div>
     </div>
     ${evalState.selectedIds.map(id => {
-      const eleve = all.find(s=>String(s.id)===String(id));
+      const eleve     = all.find(s=>String(s.id)===String(id));
       if (!eleve) return '';
       const chrono    = evalState.temps[id];
       const grille    = evalState.grilles[id]||{};
       const plongeoir = evalState.plongeoir[id]||false;
       const note      = calcNoteFinale(eleve, chrono, grille, plongeoir);
-      const nc = note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)';
-      const nb = note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)';
-      const ts   = getChronoRef(eleve); // premier chrono par date (éval diag initiale)
-      const perf = perfNote(chrono);
-      const prog = progNote(ts, chrono);
-      const tech = EVAL_CRITERES.reduce((sum,c)=>{
-        const pts=c.niveaux.find(n=>n.n===grille[c.id])?.pts||0; return sum+pts;
-      },0);
-      return `<div class="hist-card" style="border-left-color:${nc};margin-bottom:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div>
-            <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--navy)">${eleve.prenom} ${eleve.nom}</div>
-            <div style="font-size:11px;color:var(--mid)">${eleve.sousGroupe||'G3'} · ${plongeoir?'🤿 Plongeoir (+0.5)':'🏊 Bord'}</div>
+      const nc        = note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)';
+      const nb        = note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)';
+      const isOpen    = window._efOpenId===id;
+      return `
+        <!-- Accordéon header -->
+        <div style="background:#fff;border-radius:12px;margin-bottom:6px;
+          box-shadow:0 1px 8px rgba(10,37,64,.08);overflow:hidden;
+          border-left:3px solid ${nc}">
+          <div onclick="efToggleAccordeon('${id}')"
+            style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer">
+            <div style="flex:1">
+              <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--navy)">
+                ${eleve.prenom} ${eleve.nom}
+              </div>
+              <div style="font-size:11px;color:var(--mid);margin-top:2px">
+                ${eleve.sousGroupe||'G3'} · ${chrono?chrono+'s':'—'} · ${plongeoir?'🤿 +0.5':'🏊 Bord'}
+              </div>
+            </div>
+            <div style="background:${nb};color:${nc};border-radius:8px;padding:4px 10px;text-align:center;flex-shrink:0">
+              <div style="font-family:'Inter',sans-serif;font-size:18px;font-weight:800;line-height:1">${note}</div>
+              <div style="font-size:9px;font-weight:700">/20</div>
+            </div>
+            <div style="color:var(--mid);font-size:16px;transition:transform .2s;transform:rotate(${isOpen?'180':'0'}deg)">▾</div>
           </div>
-          <div style="background:${nb};color:${nc};border-radius:12px;padding:8px 14px;text-align:center">
-            <div style="font-family:'Inter',sans-serif;font-size:28px;font-weight:800;line-height:1">${note}</div>
-            <div style="font-size:10px;font-weight:700">/20</div>
-          </div>
-        </div>
-        <!-- Détail complet et uniforme -->
-        <div style="display:flex;flex-direction:column;gap:4px">
-          ${[
-            {ico:'⏱', lbl:'Chrono 25m NL',          val:chrono?chrono+'s':'—',     max:'',    bold:true},
-            {ico:'🎯', lbl:'Performance',              val:perf,                      max:'/3.5 pts'},
-            {ico:'📈', lbl:'Progression',              val:prog,                      max:'/2 pts',
-              sub:ts?'(réf: '+ts+'s)':'⚠️ Pas de T1 référence'},
-          ].map(x=>`
-            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
-              <span style="font-size:14px;width:20px">${x.ico}</span>
-              <span style="font-size:12px;color:var(--mid);flex:1">${x.lbl}${x.sub?'<br><span style="font-size:10px;color:var(--lite)">'+x.sub+'</span>':''}</span>
-              <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${x.val} <span style="font-size:10px;font-weight:400;color:var(--mid)">${x.max}</span></span>
-            </div>`).join('')}
-          ${EVAL_CRITERES.map(c=>{
-            const niv = grille[c.id];
-            const pts = niv ? (c.niveaux.find(n=>n.n===niv)?.pts||0) : 0;
-            const txt = niv ? c.niveaux.find(n=>n.n===niv)?.txt : '—';
-            const icoNiv = niv===4?'🟢':niv===3?'🟡':niv===2?'🟠':'🔴';
-            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
-              <span style="font-size:14px;width:20px">${c.ico}</span>
-              <span style="font-size:12px;color:var(--mid);flex:1">${c.lbl}<br>
-                <span style="font-size:10px;color:var(--lite)">${icoNiv} ${txt||'—'}</span>
-              </span>
-              <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${pts} <span style="font-size:10px;font-weight:400;color:var(--mid)">/${c.max} pt${c.max>1?'s':''}</span></span>
-            </div>`;
-          }).join('')}
-          ${plongeoir?`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
-            <span style="font-size:14px;width:20px">🤿</span>
-            <span style="font-size:12px;color:var(--mid);flex:1">Bonus plongeoir</span>
-            <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--g3adk)">+0.5 pts</span>
-          </div>`:''}
-        </div>
-      </div>`;
+          ${isOpen ? `
+          <div style="padding:0 14px 14px;border-top:1px solid var(--gray)">
+            ${efDetailHTML(eleve, chrono, grille, plongeoir)}
+          </div>` : ''}
+        </div>`;
     }).join('')}
-    <div class="ebtns">
+    <div class="ebtns" style="margin-top:8px">
       <button class="ebtn teal" onclick="openModule('vit')">✓ Terminer</button>
       <button class="ebtn gray" onclick="openEvalFinale()">↺ Nouvelle série</button>
     </div>`;
@@ -2138,6 +2169,296 @@ function renderDiagStep3(el){
       <button class="ebtn teal" onclick="diagReset()">✓ Nouvelle série</button>
       <button class="ebtn gray" onclick="switchModTab('vit','eleves')">← Retour aux élèves</button>
     </div>`;
+}
+
+
+// ══════════════════════════════════════════════
+// BILAN ÉLÈVE — Fiche complète
+// ══════════════════════════════════════════════
+
+function renderBilanVitesse(el) {
+  const all = Object.values(classes).flat();
+  const ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+
+  if (!ss.length) {
+    el.innerHTML = `<div class="empty"><div class="eico">📊</div><h3>Aucun élève G3</h3><p>Les élèves orientés Vitesse apparaîtront ici.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <p style="font-size:12px;color:var(--mid);margin-bottom:12px">
+      ${ss.length} élève${ss.length>1?'s':''} · Cliquer sur un nom pour ouvrir la fiche
+    </p>
+    ${ss.map(s=>{
+      const chronosFinale = (s.chronos||[]).filter(c=>c.type==='finale');
+      const evalsFinale   = (s.evalsTech||[]).filter(e=>e.type==='finale');
+      const hasDiagData   = hasDiag(s);
+      const t1            = getChronoRef(s);
+      const bestF         = chronosFinale.length ? Math.min(...chronosFinale.map(c=>c.temps)) : null;
+      const lastF         = chronosFinale.length ? chronosFinale[chronosFinale.length-1] : null;
+      const lastEvalF     = evalsFinale.length ? evalsFinale[evalsFinale.length-1] : null;
+      const note          = lastEvalF&&lastF ? calcNoteFinale(s,lastF.temps,lastEvalF.scores,lastEvalF.plongeoir||false) : null;
+      const evol          = t1&&lastF ? (t1-lastF.temps).toFixed(2) : null;
+      const nc            = note ? (note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)') : 'var(--mid)';
+      const nb            = note ? (note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)') : 'var(--gray)';
+      return `
+        <div style="background:#fff;border-radius:12px;margin-bottom:8px;
+          box-shadow:0 1px 8px rgba(10,37,64,.07);overflow:hidden;
+          border-left:3px solid ${s.sousGroupe==='G3A'?'var(--g3a)':'var(--g3b)'}">
+          <div onclick="bilanOpenFiche('${s.id}')"
+            style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer">
+            <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;
+              background:${s.sousGroupe==='G3A'?'var(--g3a)':'var(--g3b)'};
+              color:#fff;display:flex;align-items:center;justify-content:center;
+              font-family:'Syne',sans-serif;font-size:12px;font-weight:700">
+              ${(s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase()}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--navy)">
+                ${s.prenom} ${s.nom}
+              </div>
+              <div style="display:flex;gap:8px;margin-top:2px;flex-wrap:wrap">
+                <span style="font-size:10px;font-weight:700;color:${s.sousGroupe==='G3A'?'var(--g3adk)':'var(--g3bdk)'}">${s.sousGroupe||'G3'}</span>
+                <span style="font-size:10px;color:var(--mid)">${hasDiagData?'✅ Diag':'⏳ Pas de diag'}</span>
+                ${t1?`<span style="font-size:10px;color:var(--mid)">T1: ${t1}s</span>`:''}
+                ${evol!==null?`<span style="font-size:10px;font-weight:700;color:${parseFloat(evol)>0?'var(--g3adk)':'var(--g1dk)'}">
+                  ${parseFloat(evol)>0?'−'+evol:'+'+Math.abs(parseFloat(evol)).toFixed(2)}s</span>`:''}
+              </div>
+            </div>
+            <div style="background:${nb};color:${nc};border-radius:8px;padding:4px 10px;text-align:center;flex-shrink:0">
+              <div style="font-family:'Inter',sans-serif;font-size:16px;font-weight:800;line-height:1">${note||'—'}</div>
+              <div style="font-size:8px;font-weight:700">/20</div>
+            </div>
+            <div style="color:var(--lite);font-size:16px;flex-shrink:0">›</div>
+          </div>
+        </div>`;
+    }).join('')}`;
+}
+
+function bilanOpenFiche(id) {
+  const all = Object.values(classes).flat();
+  curStudent = all.find(s=>String(s.id)===String(id));
+  if (!curStudent) { showToast('Élève introuvable'); return; }
+  Object.entries(classes).forEach(([cls,ss])=>{
+    if (ss.find(s=>String(s.id)===String(id))) curClass=cls;
+  });
+  document.getElementById('fiche-bilan-name').textContent = curStudent.prenom+' '+curStudent.nom;
+  showScreen('screen-fiche-bilan');
+  renderFicheDetailBilan();
+}
+
+function renderFicheDetailBilan() {
+  const s   = curStudent;
+  const el  = document.getElementById('fiche-bilan-body');
+  if (!s || !el) return;
+
+  const chronos        = s.chronos||[];
+  const evals          = s.evalsTech||[];
+  const chronosFinale  = chronos.filter(c=>c.type==='finale');
+  const evalsFinale    = evals.filter(e=>e.type==='finale');
+  const diagEval       = evals.find(e=>e.type==='diag')||null;
+  const t1             = getChronoRef(s);
+  const lastF          = chronosFinale.length ? chronosFinale[chronosFinale.length-1] : null;
+  const lastEvalF      = evalsFinale.length ? evalsFinale[evalsFinale.length-1] : null;
+  const note           = lastEvalF&&lastF ? calcNoteFinale(s,lastF.temps,lastEvalF.scores,lastEvalF.plongeoir||false) : null;
+  const evol           = t1&&lastF ? (t1-lastF.temps) : null;
+  const nc             = note ? (note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)') : 'var(--mid)';
+  const nb             = note ? (note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)') : 'var(--gray)';
+  const presences      = s.presences||{};
+  const nbP            = Object.values(presences).filter(v=>v==='P').length;
+  const nbTotal        = Object.keys(presences).length;
+
+  // Age
+  let ageStr='';
+  if(s.ddn){const p=s.ddn.split('-');if(p.length===3){const b=new Date(+p[0],+p[1]-1,+p[2]),n=new Date();const a=n.getFullYear()-b.getFullYear()-(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())?1:0);if(!isNaN(a))ageStr=a+' ans';}}
+
+  // Bilan auto 4-5 lignes
+  const bilanAuto = genBilanAuto(s, t1, lastF, evol, note, diagEval, lastEvalF);
+
+  el.innerHTML = `
+    <!-- HERO -->
+    <div style="background:linear-gradient(135deg,#065F46,#059669);border-radius:14px;
+      padding:16px;margin-bottom:10px;color:#fff;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-10px;bottom:-10px;font-size:60px;opacity:.1">⚡</div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">${s.prenom} ${s.nom}</div>
+          <div style="font-size:11px;opacity:.65;margin-top:2px">${s.classe}${ageStr?' · '+ageStr:''}${s.sexe?' · '+s.sexe:''}</div>
+          ${s.note?`<div style="background:rgba(245,158,11,.35);color:#FDE68A;border-radius:7px;padding:3px 8px;
+            font-size:11px;font-weight:700;margin-top:6px;display:inline-block">⚡ ${s.note}</div>`:''}
+        </div>
+        ${note!==null?`<div style="background:${nb};color:${nc};border-radius:10px;padding:8px 14px;text-align:center;flex-shrink:0">
+          <div style="font-family:'Inter',sans-serif;font-size:28px;font-weight:800;line-height:1">${note}</div>
+          <div style="font-size:9px;font-weight:700">/20</div>
+        </div>`:''}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <span style="background:rgba(255,255,255,.2);border-radius:10px;padding:3px 10px;font-size:11px;font-weight:700">${s.sousGroupe||'G3'}</span>
+        ${nbTotal?`<span style="background:rgba(255,255,255,.15);border-radius:10px;padding:3px 10px;font-size:11px">${nbP}/${nbTotal} présences</span>`:''}
+        ${chronos.length?`<span style="background:rgba(255,255,255,.15);border-radius:10px;padding:3px 10px;font-size:11px">${chronos.length} chrono${chronos.length>1?'s':''}</span>`:''}
+      </div>
+    </div>
+
+    <!-- BILAN AUTO -->
+    ${bilanAuto?`<div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;
+      box-shadow:0 1px 8px rgba(10,37,64,.07);border-left:3px solid var(--teal)">
+      <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">
+        📝 Bilan de cycle
+      </div>
+      <p style="font-size:13px;color:var(--mid);line-height:1.7">${bilanAuto}</p>
+    </div>`:''}
+
+    <!-- EVAL DIAG -->
+    ${diagEval?`
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin:12px 0 8px">
+      🔍 Évaluation Diagnostique
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;
+      box-shadow:0 1px 8px rgba(10,37,64,.07);border-left:3px solid var(--g2)">
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray);margin-bottom:8px">
+        <span>⏱</span>
+        <span style="flex:1;font-size:12px;color:var(--mid)">T1 — Chrono de référence</span>
+        <span style="font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">${t1?t1+'s':'—'}</span>
+      </div>
+      ${TECH_G3.map(c=>{
+        const v   = diagEval.scores[c.id];
+        const ico = v===2?'🟢':v===1?'🟡':v===0?'🔴':'⚫';
+        const niv = c.niveaux.find(n=>n.v===v);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+          <span style="font-size:12px">${c.ico}</span>
+          <span style="flex:1;font-size:12px;color:var(--mid)">${c.lbl}</span>
+          <span>${ico}</span>
+          <span style="font-size:10px;color:var(--lite);max-width:120px;text-align:right">${niv?niv.txt:''}</span>
+        </div>`;
+      }).join('')}
+    </div>` : `
+    <div style="background:var(--gray);border-radius:10px;padding:12px;margin-bottom:10px;text-align:center;font-size:12px;color:var(--mid)">
+      🔍 Pas encore d'évaluation diagnostique
+    </div>`}
+
+    <!-- CHRONOS COMPARÉS -->
+    ${chronos.length?`
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin:12px 0 8px">
+      ⏱ Chronos comparés
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 8px rgba(10,37,64,.07)">
+      ${chronos.map((ch,i)=>{
+        const prev = i>0 ? chronos[i-1].temps : null;
+        const diff = prev!==null ? prev-ch.temps : null;
+        const isT1 = ch.type==='diag'||i===0;
+        const isBest = ch.temps===Math.min(...chronos.map(c=>c.temps));
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--gray)">
+          <div style="width:40px;flex-shrink:0">
+            <div style="font-size:10px;font-weight:700;color:${isT1?'var(--g2dk)':'var(--mid)'}">
+              ${isT1?'T1 réf':'Série '+(i)}
+            </div>
+            <div style="font-size:9px;color:var(--lite)">${fmtDateLong(ch.date)}</div>
+          </div>
+          <div style="font-family:'Inter',sans-serif;font-size:20px;font-weight:700;color:var(--navy);flex:1">
+            ${ch.temps}s ${isBest&&!isT1?'🏆':''}
+          </div>
+          ${diff!==null?`<div style="font-size:11px;font-weight:700;color:${diff>0?'var(--g3adk)':diff<0?'var(--g1dk)':'var(--mid)'}">
+            ${diff>0?'−'+diff.toFixed(2):'+'+Math.abs(diff).toFixed(2)}s
+          </div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
+    <!-- EVAL FINALE -->
+    ${lastEvalF&&lastF?`
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin:12px 0 8px">
+      📋 Évaluation Finale — ${fmtDateLong(lastEvalF.date)}
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 8px rgba(10,37,64,.07);border-left:3px solid ${nc}">
+      ${efDetailHTML(s, lastF.temps, lastEvalF.scores, lastEvalF.plongeoir||false)}
+    </div>` : `
+    <div style="background:var(--gray);border-radius:10px;padding:12px;margin-bottom:10px;text-align:center;font-size:12px;color:var(--mid)">
+      📋 Pas encore d'évaluation finale
+    </div>`}
+
+    <!-- ACTIONS -->
+    <div class="ebtns" style="margin-top:4px" id="fiche-actions">
+      <button class="ebtn teal" onclick="imprimerFiche()" style="display:flex;align-items:center;justify-content:center;gap:8px">
+        🖨️ Imprimer la fiche
+      </button>
+      <button class="ebtn" style="background:var(--navy2);display:flex;align-items:center;justify-content:center;gap:8px"
+        onclick="mailFiche()">
+        📧 Envoyer par mail
+      </button>
+    </div>`;
+}
+
+function genBilanAuto(s, t1, lastF, evol, note, diagEval, lastEvalF) {
+  if (!lastF && !diagEval) return null;
+  const lines = [];
+  const prenom = s.prenom;
+
+  // Progression chrono
+  if (t1 && lastF && evol!==null) {
+    const sec = Math.abs(evol).toFixed(2);
+    if (evol>0) lines.push(`${prenom} a progressé de <strong>${sec}s</strong> sur 25m NL depuis le début du cycle (${t1}s → ${lastF.temps}s).`);
+    else if (evol<0) lines.push(`${prenom} a régressé de ${sec}s sur 25m NL (${t1}s → ${lastF.temps}s). Un travail spécifique est à prévoir.`);
+    else lines.push(`${prenom} maintient son temps de ${t1}s sur 25m NL.`);
+  } else if (t1 && !lastF) {
+    lines.push(`${prenom} a un T1 de référence de ${t1}s. Aucun chrono d'évaluation finale enregistré.`);
+  }
+
+  // Points forts / à consolider depuis diag ou finale
+  const evalRef = lastEvalF || diagEval;
+  if (evalRef) {
+    const scores = evalRef.scores;
+    const forts  = TECH_G3.filter(c=>scores[c.id]===2).map(c=>c.lbl.toLowerCase());
+    const moyens = TECH_G3.filter(c=>scores[c.id]===1).map(c=>c.lbl.toLowerCase());
+    const faibles= TECH_G3.filter(c=>scores[c.id]===0).map(c=>c.lbl.toLowerCase());
+    if (forts.length)   lines.push(`Points forts : <strong>${forts.join(', ')}</strong>.`);
+    if (faibles.length) lines.push(`À consolider : <strong>${faibles.join(', ')}</strong>.`);
+    else if (moyens.length) lines.push(`Axes d'amélioration : ${moyens.join(', ')}.`);
+  }
+
+  // Note
+  if (note!==null) {
+    const mention = note>=16?'Très bien':note>=14?'Bien':note>=12?'Assez bien':note>=10?'Passable':'Insuffisant';
+    lines.push(`<strong>Note finale : ${note}/20 — ${mention}</strong>.`);
+  }
+
+  // Groupe
+  if (s.sousGroupe) {
+    lines.push(`Classement : ${s.sousGroupe==='G3A'?'G3A — Excellent nageur ✦':'G3B — Nageur à confirmer'}.`);
+  }
+
+  return lines.join(' ');
+}
+
+function imprimerFiche() {
+  // Masquer les boutons pour l'impression
+  const actions = document.getElementById('fiche-actions');
+  if (actions) actions.style.display='none';
+  window.print();
+  setTimeout(()=>{ if(actions) actions.style.display=''; }, 1000);
+}
+
+function mailFiche() {
+  const s = curStudent;
+  if (!s) return;
+  const chronos       = s.chronos||[];
+  const evalsFinale   = (s.evalsTech||[]).filter(e=>e.type==='finale');
+  const t1            = getChronoRef(s);
+  const lastF         = (chronos.filter(c=>c.type==='finale')).slice(-1)[0]||null;
+  const lastEvalF     = evalsFinale.slice(-1)[0]||null;
+  const note          = lastEvalF&&lastF ? calcNoteFinale(s,lastF.temps,lastEvalF.scores,lastEvalF.plongeoir||false) : null;
+  const evol          = t1&&lastF ? (t1-lastF.temps).toFixed(2) : null;
+
+  const sujet = encodeURIComponent('Fiche natation — '+s.prenom+' '+s.nom+' — '+s.classe);
+  let corps = 'Fiche Natation de Vitesse\n';
+  corps += s.prenom+' '+s.nom+' | '+s.classe+' | '+s.sousGroupe+'\n\n';
+  corps += '--- CHRONOS ---\n';
+  corps += 'T1 référence : '+(t1?t1+'s':'—')+'\n';
+  corps += 'Dernier chrono : '+(lastF?lastF.temps+'s':'—')+'\n';
+  if (evol) corps += 'Évolution : '+(parseFloat(evol)>0?'−'+evol:'+'+Math.abs(parseFloat(evol)).toFixed(2))+'s\n';
+  if (note!==null) corps += '\n--- NOTE FINALE ---\n'+note+'/20\n';
+  corps += '\nGénéré par EPS Natation';
+
+  window.location.href = 'mailto:?subject='+sujet+'&body='+encodeURIComponent(corps);
 }
 
 // ── INIT ─────────────────────────────────────
