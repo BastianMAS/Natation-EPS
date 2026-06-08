@@ -144,6 +144,7 @@ function updateHomeCounts() {
 
 // ── ÉLÈVES PAR MODULE ─────────────────────────
 function renderModuleEleves(mod, el) {
+  if (mod==='assn') { renderAssnEleves(el); return; }
   const ss = getModuleStudents(mod).sort((a,b)=>a.nom.localeCompare(b.nom));
 
   if (mod==='end') {
@@ -929,6 +930,77 @@ function openClasseDetail(cls) {
 
 function deleteClass(cls){
   showModal('Supprimer la classe "'+cls+'" ?',()=>{delete classes[cls];save();renderClasses();updateHomeCounts();showToast('Classe supprimée');});
+}
+
+
+function renderAssnEleves(el) {
+  const all  = Object.values(classes).flat();
+  // À tester = pas de groupe
+  const aTester = all.filter(s=>!s.groupe).sort((a,b)=>a.nom.localeCompare(b.nom));
+  // G1 = groupe 1
+  const g1 = all.filter(s=>s.groupe==='1').sort((a,b)=>a.nom.localeCompare(b.nom));
+
+  const tab = window._assnTab || 'attester';
+
+  el.innerHTML = `
+    <!-- Sous-onglets -->
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button onclick="window._assnTab='attester';renderAssnEleves(document.getElementById('assn-body'))"
+        style="flex:1;padding:9px;border-radius:10px;border:none;cursor:pointer;
+        font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;
+        background:${tab==='attester'?'var(--pend)':'#fff'};
+        color:${tab==='attester'?'#fff':'var(--mid)'};
+        box-shadow:0 1px 6px rgba(10,37,64,.08)">
+        🕐 À tester <span style="background:rgba(255,255,255,.25);border-radius:6px;padding:1px 7px;font-size:11px">${aTester.length}</span>
+      </button>
+      <button onclick="window._assnTab='g1';renderAssnEleves(document.getElementById('assn-body'))"
+        style="flex:1;padding:9px;border-radius:10px;border:none;cursor:pointer;
+        font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;
+        background:${tab==='g1'?'var(--g1)':'#fff'};
+        color:${tab==='g1'?'#fff':'var(--mid)'};
+        box-shadow:0 1px 6px rgba(10,37,64,.08)">
+        🚨 G1 Non nageurs <span style="background:rgba(255,255,255,.25);border-radius:6px;padding:1px 7px;font-size:11px">${g1.length}</span>
+      </button>
+    </div>
+
+    ${tab==='attester' ? `
+      ${!aTester.length ? `
+        <div class="empty">
+          <div class="eico">✅</div>
+          <h3>Tous évalués !</h3>
+          <p>Aucun élève en attente de test ASSN.</p>
+        </div>` :
+        aTester.map(s=>{
+          const ini=(s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase();
+          return `<div class="stu-card pend" onclick="openStudent('${s.id}')">
+            <div class="avatar avp">${ini}</div>
+            <div style="flex:1;min-width:0">
+              <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
+              <div class="stu-sub">${s.classe} · Parcours ASSN à réaliser</div>
+            </div>
+            <span class="gpill p">À tester</span>
+          </div>`;
+        }).join('')}` : `
+      ${!g1.length ? `
+        <div class="empty">
+          <div class="eico">🎉</div>
+          <h3>Aucun élève G1</h3>
+          <p>Tous les élèves testés ont validé le savoir nager.</p>
+        </div>` :
+        g1.map(s=>{
+          const ini=(s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase();
+          const ko=Object.entries(s.criteres||{}).filter(([,v])=>v===false).length;
+          const koAtt=Object.entries(s.attitudes||{}).filter(([,v])=>v===false).length;
+          return `<div class="stu-card g1" onclick="openStudent('${s.id}')">
+            <div class="avatar av1">${ini}</div>
+            <div style="flex:1;min-width:0">
+              <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
+              <div class="stu-sub">${s.classe} · ${ko>0?ko+' étape'+(ko>1?'s':'')+ ' échouée'+(ko>1?'s':''):''}${koAtt>0?' · '+koAtt+' attitude'+(koAtt>1?'s':'')+' non maîtrisée'+(koAtt>1?'s':''):''}</div>
+            </div>
+            <span class="gpill g1">G1</span>
+          </div>`;
+        }).join('')}
+    `}`;
 }
 
 // ── IMPORT ───────────────────────────────────

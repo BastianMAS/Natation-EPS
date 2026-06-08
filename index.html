@@ -270,13 +270,42 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
 .hidden{display:none!important}
 
 @media print {
-  .screen { display:none!important; }
-  #screen-fiche-bilan { display:flex!important;flex-direction:column;position:static!important;
-    transform:none!important;visibility:visible!important;height:auto!important;overflow:visible!important; }
-  #screen-fiche-bilan .hdr { display:none!important; }
-  #screen-fiche-bilan .body { overflow:visible!important;padding:16px!important; }
-  #fiche-actions { display:none!important; }
+  @page { size: A4 portrait; margin: 10mm 12mm; }
   * { -webkit-print-color-adjust:exact!important;print-color-adjust:exact!important; }
+  .screen { display:none!important; }
+  #screen-fiche-bilan {
+    display:block!important;position:static!important;transform:none!important;
+    visibility:visible!important;height:auto!important;overflow:visible!important;
+    background:#fff!important;
+  }
+  #screen-fiche-bilan .hdr { display:none!important; }
+  #screen-fiche-bilan .body {
+    overflow:visible!important;padding:0!important;
+    display:block!important;
+  }
+  #fiche-actions { display:none!important; }
+  /* Compacter toutes les zones */
+  #fiche-bilan-body > div {
+    margin-bottom:6px!important;
+    border-radius:6px!important;
+    padding:8px 10px!important;
+    page-break-inside:avoid;
+  }
+  /* Réduire la typo */
+  #fiche-bilan-body { font-size:10px!important; }
+  #fiche-bilan-body [style*="font-size:20px"],
+  #fiche-bilan-body [style*="font-size:22px"],
+  #fiche-bilan-body [style*="font-size:28px"] { font-size:16px!important; }
+  #fiche-bilan-body [style*="font-size:14px"],
+  #fiche-bilan-body [style*="font-size:15px"],
+  #fiche-bilan-body [style*="font-size:16px"] { font-size:11px!important; }
+  #fiche-bilan-body [style*="font-size:13px"] { font-size:10px!important; }
+  #fiche-bilan-body [style*="font-size:12px"],
+  #fiche-bilan-body [style*="font-size:11px"] { font-size:9px!important; }
+  #fiche-bilan-body [style*="padding:6px 0"],
+  #fiche-bilan-body [style*="padding:7px 0"] { padding:3px 0!important; }
+  /* Hero compact */
+  #fiche-bilan-body > div:first-child { padding:8px 10px!important; }
 }
 
 
