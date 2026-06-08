@@ -2205,7 +2205,7 @@ function renderBilanVitesse(el) {
         <div style="background:#fff;border-radius:12px;margin-bottom:8px;
           box-shadow:0 1px 8px rgba(10,37,64,.07);overflow:hidden;
           border-left:3px solid ${s.sousGroupe==='G3A'?'var(--g3a)':'var(--g3b)'}">
-          <div onclick="bilanOpenFiche('${s.id}')"
+          <div class="bilan-fiche-row" data-bilan-id="${s.id}"
             style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer">
             <div style="width:34px;height:34px;border-radius:50%;flex-shrink:0;
               background:${s.sousGroupe==='G3A'?'var(--g3a)':'var(--g3b)'};
@@ -2464,5 +2464,11 @@ function mailFiche() {
 // ── INIT ─────────────────────────────────────
 load();
 updateHomeCounts();
+
+// Délégation — fiche bilan
+document.addEventListener('click', e => {
+  const row = e.target.closest('.bilan-fiche-row');
+  if (row && row.dataset.bilanId) bilanOpenFiche(row.dataset.bilanId);
+});
 
 
