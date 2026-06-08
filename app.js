@@ -121,7 +121,7 @@ function renderModuleTab(mod, tab) {
   else if (tab==='presences') renderPresencesTable(mod, el);
   else if (tab==='serie') { renderSerieInline(el); }
   else if (tab==='diag')  renderEvalDiag(el);
-  else if (tab==='bilan') renderBilanVitesse(el);
+
 }
 
 function updateHomeCounts() {
@@ -1821,319 +1821,24 @@ function siValider() {
 // ══════════════════════════════════════════════
 // BILAN MODULE VITESSE
 // ══════════════════════════════════════════════
-function renderBilanVitesse(el) {
-  const all = Object.values(classes).flat();
-  let ss = all.filter(s=>s.groupe==='3');
-  if (!ss.length) {
-    el.innerHTML = `<div class="empty"><div class="eico">📊</div><h3>Aucun élève G3</h3></div>`;
-    return;
-  }
-
-  // Tri actuel stocké dans window pour persistance
-  const tri = window._bilanTri || 'nom';
-
-  // Calculer les données pour chaque élève
-  const rows = ss.map(s=>{
-    const chronos   = s.chronos||[];
-    const evals     = s.evalsTech||[];
-    const presences = s.presences||{};
-    const t1        = getChronoRef(s);
-    // Uniquement chronos et evals de type finale (pas diagnostique)
-    const chronosFinale = chronos.filter(c=>c.type==='finale');
-    const evalsFinale   = evals.filter(e=>e.type==='finale');
-    const best      = chronosFinale.length ? Math.min(...chronosFinale.map(c=>c.temps)) : null;
-    const last      = chronosFinale.length ? chronosFinale[chronosFinale.length-1].temps : null;
-    const evol      = t1&&last ? t1-last : null;
-    const lastEval  = evalsFinale.length ? evalsFinale[evalsFinale.length-1] : null;
-    const note      = lastEval&&last ? calcNoteFinale(s,last,lastEval.scores,lastEval.plongeoir||false) : null;
-    // Compter présences
-    const nbPres    = Object.values(presences).filter(v=>v==='P').length;
-    const nbSéances = Object.keys(presences).length + (classes._seancesDates?Object.values(classes._seancesDates).flat().filter(d=>!presences[d]).length:0);
-    return { s, t1, best, last, evol, note, nbPres, nbSéances: Object.keys(presences).length };
-  });
-
-  // Appliquer le tri
-  rows.sort((a,b)=>{
-    if (tri==='nom')    return a.s.nom.localeCompare(b.s.nom);
-    if (tri==='chrono') return (a.best??999)-(b.best??999);
-    if (tri==='note')   return (b.note??-1)-(a.note??-1);
-    if (tri==='groupe') return (a.s.sousGroupe||'').localeCompare(b.s.sousGroupe||'');
-    return 0;
-  });
-
-  el.innerHTML = `
-    <!-- Tri -->
-    <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto">
-      ${[
-        {k:'nom',    lbl:'A→Z'},
-        {k:'groupe', lbl:'G3A/B'},
-        {k:'chrono', lbl:'⏱ Perf'},
-        {k:'note',   lbl:'📊 Note'},
-      ].map(t=>`<button onclick="bilanSetTri('${t.k}')"
-        style="flex-shrink:0;padding:6px 12px;border-radius:8px;border:none;cursor:pointer;
-        font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;
-        background:${tri===t.k?'var(--navy)':'var(--gray)'};
-        color:${tri===t.k?'#fff':'var(--mid)'}">
-        ${t.lbl}${tri===t.k?' ▾':''}
-      </button>`).join('')}
-      <span style="font-size:11px;color:var(--mid);align-self:center;margin-left:4px">${rows.length} élèves</span>
-    </div>
-
-    <!-- Liste -->
-    ${rows.map(r=>{
-      const s=r.s;
-      const nc=r.note?(r.note>=16?'var(--g3adk)':r.note>=12?'var(--g3bdk)':r.note>=8?'var(--g2dk)':'var(--g1dk)'):'var(--mid)';
-      const nb=r.note?(r.note>=16?'var(--g3abg)':r.note>=12?'var(--g3bbg)':r.note>=8?'var(--g2bg)':'var(--g1bg)'):'var(--gray)';
-      return `<div style="background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:6px;
-        box-shadow:0 1px 6px rgba(10,37,64,.06);display:flex;align-items:center;gap:10px;
-        border-left:3px solid ${s.sousGroupe==='G3A'?'var(--g3a)':'var(--g3b)'}">
-        <!-- Avatar -->
-        <div style="width:32px;height:32px;border-radius:50%;background:${s.sousGroupe==='G3A'?'var(--g3a)':'var(--g3b)'};
-          color:#fff;display:flex;align-items:center;justify-content:center;
-          font-size:11px;font-weight:700;flex-shrink:0">
-          ${(s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase()}
-        </div>
-        <!-- Infos -->
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            ${s.prenom} ${s.nom}
-          </div>
-          <div style="display:flex;gap:8px;margin-top:2px;flex-wrap:wrap">
-            <span style="font-size:10px;font-weight:700;color:${s.sousGroupe==='G3A'?'var(--g3adk)':'var(--g3bdk)'}">${s.sousGroupe||'G3'}</span>
-            <span style="font-size:10px;color:var(--mid)">${r.t1?'T1:'+r.t1+'s':'—'}</span>
-            <span style="font-size:10px;color:var(--mid)">${r.best?'↓'+r.best+'s':'—'}</span>
-            <span style="font-size:10px;font-weight:700;color:${r.evol>0?'var(--g3adk)':r.evol<0?'var(--g1dk)':'var(--mid)'}">
-              ${r.evol!==null?(r.evol>0?'−'+r.evol.toFixed(2):'+'+Math.abs(r.evol).toFixed(2))+'s':'—'}
-            </span>
-            <span style="font-size:10px;color:var(--mid)">👁 ${r.nbPres}/${r.nbSéances}</span>
-          </div>
-        </div>
-        <!-- Note -->
-        <div style="background:${nb};color:${nc};border-radius:8px;padding:4px 8px;text-align:center;flex-shrink:0">
-          <div style="font-family:'Inter',sans-serif;font-size:15px;font-weight:800;line-height:1">${r.note||'—'}</div>
-          <div style="font-size:8px;font-weight:700">/20</div>
-        </div>
-        <!-- Bouton fiche -->
-        <button class="btn-open-fiche" data-eid="${s.id}"
-          style="background:var(--navy);color:#fff;border:none;border-radius:8px;
-          padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap">
-          Fiche →
-        </button>
-      </div>`;
-    }).join('')}`;
-}
-
-function bilanSetTri(tri) {
-  window._bilanTri = tri;
-  const el = document.getElementById('vit-body');
-  if (el) renderBilanVitesse(el);
-}
-
-function bilanOpenFiche(id) {
-  const all = Object.values(classes).flat();
-  curStudent = all.find(s=>String(s.id)===String(id));
-  if (!curStudent) return;
-  Object.entries(classes).forEach(([cls,ss])=>{
-    if(ss.find(s=>String(s.id)===String(id))) curClass=cls;
-  });
-  const titleEl = document.getElementById('fiche-bilan-name');
-  if (titleEl) titleEl.textContent = curStudent.prenom+' '+curStudent.nom;
-  showScreen('screen-fiche-bilan');
-  renderFicheDetailBilan();
-}
-
-function renderFicheDetailBilan() {
-  const s = curStudent;
-  const el = document.getElementById('fiche-bilan-body');
-  if (!el) return;
-  const chronos   = s.chronos||[];
-  const evals     = s.evalsTech||[];
-  const presences = s.presences||{};
-  const t1        = getChronoRef(s);
-  const best      = chronos.length ? Math.min(...chronos.map(c=>c.temps)) : null;
-  // Chrono et éval finale uniquement (pas diagnostique)
-  const last           = chronos.filter(c=>c.type!=='diag').slice(-1)[0]||null;
-  const evol           = t1&&last ? (t1-last.temps).toFixed(2) : null;
-  const lastEvalFinale = evals.filter(e=>e.type!=='diag').slice(-1)[0]||null;
-  const note           = lastEvalFinale&&last
-    ? calcNoteFinale(s, last.temps, lastEvalFinale.scores, lastEvalFinale.plongeoir||false)
-    : null;
-
-  // Présences
-  const presVals   = Object.values(presences);
-  const nbPresent  = presVals.filter(v=>v==='P').length;
-  const nbAbsent   = presVals.filter(v=>v==='A').length;
-  const nbDispense = presVals.filter(v=>v==='D').length;
-  const nbOubli    = presVals.filter(v=>v==='T').length;
-  const nbTotal    = presVals.length;
-
-  // Age
-  let ageStr='';
-  if(s.ddn){const p=s.ddn.split('-');if(p.length===3){const b=new Date(+p[0],+p[1]-1,+p[2]),n=new Date();const a=n.getFullYear()-b.getFullYear()-(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())?1:0);if(!isNaN(a))ageStr=`${a} ans`;}}
-
-  const nc=note?(note>=16?'var(--g3adk)':note>=12?'var(--g3bdk)':note>=8?'var(--g2dk)':'var(--g1dk)'):'var(--mid)';
-  const nb=note?(note>=16?'var(--g3abg)':note>=12?'var(--g3bbg)':note>=8?'var(--g2bg)':'var(--g1bg)'):'var(--gray)';
-
-  el.innerHTML = `
-    <!-- Hero -->
-    <div style="background:linear-gradient(135deg,#065F46,#059669);border-radius:14px;padding:16px;margin-bottom:10px;color:#fff">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between">
-        <div>
-          <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">${s.prenom} ${s.nom}</div>
-          <div style="font-size:11px;opacity:.6;margin-top:2px">${s.classe}${ageStr?' · '+ageStr:''}${s.sexe?' · '+s.sexe:''}</div>
-          ${s.note?`<div style="background:rgba(245,158,11,.3);color:#FDE68A;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;margin-top:6px;display:inline-block">⚡ ${s.note}</div>`:''}
-        </div>
-        ${note!==null?`<div style="background:${nb};color:${nc};border-radius:10px;padding:8px 12px;text-align:center">
-          <div style="font-family:'Inter',sans-serif;font-size:24px;font-weight:800;line-height:1">${note}</div>
-          <div style="font-size:9px;font-weight:700">/20</div>
-        </div>`:''}
-      </div>
-      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-        <span style="background:rgba(255,255,255,.2);color:#fff;border-radius:10px;padding:3px 10px;font-size:11px;font-weight:700">${s.sousGroupe||'G3'}</span>
-        ${evals.length?`<span style="background:rgba(255,255,255,.15);color:#fff;border-radius:10px;padding:3px 10px;font-size:11px">${evals.length} éval${evals.length>1?'s':''} tech</span>`:''}
-        ${chronos.length?`<span style="background:rgba(255,255,255,.15);color:#fff;border-radius:10px;padding:3px 10px;font-size:11px">${chronos.length} chrono${chronos.length>1?'s':''}</span>`:''}
-      </div>
-    </div>
-
-    <!-- Stats rapides -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
-      ${[
-        {lbl:'T1 réf.',  val:t1?t1+'s':'—'},
-        {lbl:'Meilleur', val:best?best+'s':'—'},
-        {lbl:'Évolution',val:evol?(parseFloat(evol)>0?'−'+evol:'+'+ Math.abs(evol))+'s':'—'},
-        {lbl:'Présences',val:nbPresent+'/'+nbTotal},
-      ].map(x=>`<div style="background:#fff;border-radius:9px;padding:8px 6px;text-align:center;box-shadow:0 1px 6px rgba(10,37,64,.06)">
-        <div style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${x.val}</div>
-        <div style="font-size:9px;color:var(--mid);margin-top:1px">${x.lbl}</div>
-      </div>`).join('')}
-    </div>
-
-    <!-- Présences détail -->
-    ${nbTotal>0?`<div class="hist-card" style="margin-bottom:10px">
-      <div class="hist-date">📋 Présences (${nbTotal} séances)</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        <span style="background:var(--g3abg);color:var(--g3adk);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:700">✅ Présent: ${nbPresent}</span>
-        <span style="background:var(--g1bg);color:var(--g1dk);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:700">❌ Absent: ${nbAbsent}</span>
-        ${nbDispense?`<span style="background:var(--g2bg);color:var(--g2dk);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:700">🩺 Dispensé: ${nbDispense}</span>`:''}
-        ${nbOubli?`<span style="background:var(--pendbg);color:var(--penddk);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:700">👕 Oubli: ${nbOubli}</span>`:''}
-      </div>
-    </div>`:''}
-
-    <!-- Historique chronos -->
-    ${chronos.length?`<div class="section-title" style="margin-top:4px">⏱ Chronos 25m NL (${chronos.length})</div>
-    ${[...chronos].reverse().map((ch,i)=>{
-      const idx=chronos.length-1-i;
-      const prev=idx>0?chronos[idx-1].temps:null;
-      const diff=prev!==null?prev-ch.temps:null;
-      const isBest=ch.temps===best;
-      const isT1=ch.type==='diag'||idx===0;
-      return `<div class="chrono-hist-card">
-        <div style="width:52px;flex-shrink:0">
-          <div style="font-size:10px;font-weight:700;color:var(--mid)">${isT1?'T1 réf.':'C'+idx}</div>
-          <div style="font-size:9px;color:var(--lite)">${fmtDateLong(ch.date)}</div>
-        </div>
-        <div style="flex:1">
-          <div style="font-family:'Inter',sans-serif;font-size:22px;font-weight:700;color:var(--navy);line-height:1">
-            ${ch.temps}s ${isBest?'🏆':''}
-          </div>
-        </div>
-        <div>${diff===null?'':diff>0?'📈':'📉'}</div>
-        ${diff!==null?`<div style="font-size:11px;font-weight:700;color:${diff>0?'var(--g3adk)':diff<0?'var(--g1dk)':'var(--mid)'}">
-          ${diff>0?'−'+diff.toFixed(2):'+'+Math.abs(diff).toFixed(2)}s
-        </div>`:''}
-      </div>`;
-    }).join('')}`:
-    '<div class="eval-card" style="text-align:center;padding:18px"><div style="font-size:24px;margin-bottom:6px">⏱</div><p style="font-size:12px;color:var(--mid)">Pas encore de chrono.</p></div>'}
-
-    <!-- Historique évals tech -->
-    ${evals.length?`<div class="section-title">📋 Évaluations techniques (${evals.length})</div>
-    ${[...evals].reverse().map((ev,i)=>{
-      const idx=evals.length-1-i;
-      const isDiag=ev.type==='diag'||idx===0;
-      const total=Object.values(ev.scores).reduce((a,b)=>a+b,0);
-      return `<div class="hist-card" style="border-left-color:${isDiag?'var(--g2)':'var(--teal)'}">
-        <div class="hist-date">
-          ${isDiag?'🔍 Diagnostique':'📋 Éval '+(idx+1)} — ${fmtDateLong(ev.date)}
-          <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--navy)">${total.toFixed(1)}/12</span>
-        </div>
-        ${TECH_G3.map(c=>{
-          const v=ev.scores[c.id];
-          const w=v===2?100:v===1?55:20;
-          const fc=v===2?'f2':v===1?'f1':'f0';
-          const dot=v===2?'🟢':v===1?'🟡':'🔴';
-          return `<div class="tech-row">
-            <span class="tech-ico">${c.ico}</span>
-            <span class="tech-lbl">${c.lbl}</span>
-            <div class="tech-bar"><div class="tech-fill ${fc}" style="width:${w}%"></div></div>
-            <span class="tech-dot">${dot}</span>
-          </div>`;
-        }).join('')}
-      </div>`;
-    }).join('')}`:
-    '<div class="eval-card" style="text-align:center;padding:18px"><div style="font-size:24px;margin-bottom:6px">📋</div><p style="font-size:12px;color:var(--mid)">Pas encore d\'évaluation technique.</p></div>'}
-
-    <!-- Actions -->
-    <div class="ebtns" style="margin-top:8px">
-      <button class="ebtn teal" onclick="window.print()" style="display:flex;align-items:center;justify-content:center;gap:8px">
-        🖨️ Imprimer la fiche
-      </button>
-      <button class="ebtn" style="background:var(--navy2);display:flex;align-items:center;justify-content:center;gap:8px"
-        onclick="mailFiche()">
-        📧 Envoyer par mail
-      </button>
-      <button class="ebtn gray" onclick="showScreen('screen-vit');setTimeout(()=>switchModTab('vit','bilan'),50)">← Retour au bilan</button>
-    </div>`;
-}
-
-function mailFiche() {
-  const s = curStudent;
-  if (!s) return;
-  const chronos        = s.chronos||[];
-  const evals          = s.evalsTech||[];
-  const t1             = getChronoRef(s);
-  const chronosFinale  = chronos.filter(c=>c.type==='finale');
-  const evalsFinale    = evals.filter(e=>e.type==='finale');
-  const best    = chronosFinale.length ? Math.min(...chronosFinale.map(c=>c.temps)) : null;
-  const last    = chronosFinale.length ? chronosFinale[chronosFinale.length-1] : null;
-  const lastEval= evalsFinale.length ? evalsFinale[evalsFinale.length-1] : null;
-  const note    = lastEval&&last ? calcNoteFinale(s,last.temps,lastEval.scores,lastEval.plongeoir||false) : null;
-
-  const sujet = encodeURIComponent(`Fiche natation — ${s.prenom} ${s.nom} — ${s.classe}`);
-  const corps = encodeURIComponent(
-    `Fiche Natation de Vitesse — ${s.prenom} ${s.nom}
-`+
-    `Classe: ${s.classe} | Groupe: ${s.sousGroupe||'G3'}
-
-`+
-    `CHRONOS
-`+
-    `T1 référence: ${t1?t1+'s':'—'}
-`+
-    `Meilleur chrono: ${best?best+'s':'—'}
-`+
-    `Dernier chrono: ${last?last.temps+'s':'—'}
-
-`+
-    `NOTE FINALE: ${note?note+'/20':'Non calculée'}
-
-`+
-    `Généré par EPS Natation`
-  );
-  window.location.href = `mailto:?subject=${sujet}&body=${corps}`;
-}
 
 
 // ══════════════════════════════════════════════
-// ÉVALUATION DIAGNOSTIQUE (début de cycle)
+// ÉVALUATION DIAGNOSTIQUE (séance 2 — début cycle)
 // ══════════════════════════════════════════════
+
 let diagState = {
+  step: 1,
   selectedIds: [],
   chrono: { running:false, startMs:0, elapsed:0, timer:null },
   temps: {},
   grilles: {},
   eleveActif: null,
-  step: 1,
 };
+
+function hasDiag(s) {
+  return (s.evalsTech||[]).some(e=>e.type==='diag') || (s.chronos||[]).some(c=>c.type==='diag');
+}
 
 function renderEvalDiag(el) {
   el.scrollTop = 0;
@@ -2145,30 +1850,42 @@ function renderEvalDiag(el) {
 function renderDiagStep1(el) {
   const all = Object.values(classes).flat();
   const g3  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+
   el.innerHTML = `
     <div class="ef-steps">
       <div class="ef-step cur">1 · Sélection</div>
-      <div class="ef-step">2 · Chrono + Observation</div>
+      <div class="ef-step">2 · Chrono + Obs.</div>
       <div class="ef-step">3 · Résumé</div>
     </div>
     <div class="eval-card" style="margin-top:10px">
-      <div class="eval-card-title">🔍 Évaluation Diagnostique — Début de cycle</div>
+      <div class="eval-card-title">🔍 Évaluation Diagnostique</div>
       <p style="font-size:12px;color:var(--mid);margin-bottom:12px">
-        Sélectionner les élèves de la série (1 à 4).<br>
-        Le chrono sera enregistré comme <strong>T1 de référence</strong>.
+        50m observation technique + chrono 25m NL → <strong>T1 de référence</strong><br>
+        <span style="color:var(--g2dk);font-weight:600">Une seule éval diag par élève.</span>
       </p>
-      ${!g3.length?'<p style="color:var(--mid);font-size:13px">Aucun élève G3.</p>':
-        g3.map(s=>{
-          const sel = diagState.selectedIds.includes(s.id);
-          const hasT1 = s.chronos && s.chronos.length>0;
-          return `<div class="serie-eleve-row">
-            <button class="serie-check ${sel?'sel':''}" onclick="diagToggleEleve('${s.id}')">${sel?'✓':''}</button>
-            <div style="flex:1">
-              <div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
-              <div style="font-size:11px;color:${hasT1?'var(--g3adk)':'var(--mid)'}">
-                ${hasT1?'✓ T1 déjà enregistré : '+getChronoRef(s)+'s':'Pas encore de T1'}
+      ${!g3.length ? '<p style="color:var(--mid);font-size:13px">Aucun élève G3.</p>' :
+        g3.map(s => {
+          const sel  = diagState.selectedIds.includes(s.id);
+          const done = hasDiag(s);
+          const t1   = getChronoRef(s);
+          return `<div class="serie-eleve-row" style="${done?'opacity:.55':''}">
+            ${done ? `
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--g3abg);
+                display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">✅</div>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
+                <div style="font-size:11px;color:var(--g3adk)">Diag fait · T1 : ${t1||'?'}s</div>
               </div>
-            </div>
+              <button onclick="supprimerDiag('${s.id}')"
+                style="background:transparent;border:1px solid var(--lite);color:var(--mid);
+                border-radius:7px;padding:4px 9px;font-size:11px;cursor:pointer">🗑</button>
+            ` : `
+              <button class="serie-check ${sel?'sel':''}" onclick="diagToggleEleve('${s.id}')">${sel?'✓':''}</button>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600;color:var(--navy)">${s.prenom} ${s.nom}</div>
+                <div style="font-size:11px;color:var(--mid)">${s.sousGroupe||'G3'} · Pas encore de diag</div>
+              </div>
+            `}
           </div>`;
         }).join('')}
     </div>
@@ -2176,8 +1893,22 @@ function renderDiagStep1(el) {
       <button class="ebtn teal" onclick="diagGoStep2()" ${!diagState.selectedIds.length?'disabled':''}>
         ▶ Démarrer — ${diagState.selectedIds.length} élève${diagState.selectedIds.length>1?'s':''}
       </button>
-      <button class="ebtn gray" onclick="diagReset()">↺ Réinitialiser</button>
     </div>`;
+}
+
+function supprimerDiag(id) {
+  const all = Object.values(classes).flat();
+  const s   = all.find(e=>String(e.id)===String(id));
+  if (!s) return;
+  showModal('Supprimer le diagnostic de '+s.prenom+' '+s.nom+' ?', () => {
+    s.evalsTech = (s.evalsTech||[]).filter(e=>e.type!=='diag');
+    s.chronos   = (s.chronos||[]).filter(c=>c.type!=='diag');
+    save();
+    diagState.selectedIds = diagState.selectedIds.filter(sid=>sid!==id);
+    const el = document.getElementById('vit-body');
+    if (el) renderEvalDiag(el);
+    showToast('Diagnostic supprimé');
+  });
 }
 
 function diagToggleEleve(id) {
@@ -2204,7 +1935,7 @@ function diagGoStep2() {
 
 function diagReset() {
   if (diagState.chrono.timer) clearInterval(diagState.chrono.timer);
-  diagState = { selectedIds:[], chrono:{running:false,startMs:0,elapsed:0,timer:null}, temps:{}, grilles:{}, eleveActif:null, step:1 };
+  diagState = { step:1, selectedIds:[], chrono:{running:false,startMs:0,elapsed:0,timer:null}, temps:{}, grilles:{}, eleveActif:null };
   const el = document.getElementById('vit-body');
   if (el) renderEvalDiag(el);
 }
@@ -2215,16 +1946,15 @@ function renderDiagStep2(el) {
   const actif  = all.find(s=>String(s.id)===String(diagState.eleveActif));
   const grille = diagState.grilles[diagState.eleveActif]||{};
   const c      = diagState.chrono;
-  const allFilled = diagState.selectedIds.every(id=>TECH_G3.every(c=>diagState.grilles[id]&&diagState.grilles[id][c.id]!==undefined));
+  const allFilled = diagState.selectedIds.every(id=>TECH_G3.every(crit=>(diagState.grilles[id]||{})[crit.id]!==undefined));
 
   el.innerHTML = `
     <div class="ef-steps">
       <div class="ef-step done">1 · Sélection</div>
-      <div class="ef-step cur">2 · Chrono + Observation</div>
+      <div class="ef-step cur">2 · Chrono + Obs.</div>
       <div class="ef-step">3 · Résumé</div>
     </div>
 
-    <!-- Chrono -->
     <div class="card" style="padding:14px;text-align:center">
       <div id="diag-chrono" class="serie-chrono-big ${c.running?'running':''}">${fmtTime(c.elapsed)}</div>
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -2242,18 +1972,16 @@ function renderDiagStep2(el) {
           return `<button onclick="diagCapture('${s.id}')"
             style="background:${t?'var(--g3abg)':'var(--navy2)'};color:${t?'var(--g3adk)':'#fff'};
             border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer">
-            ${t?'✓ '+t+'s':'🏁 '+s.prenom}
-          </button>`;
+            ${t?'✓ '+t+'s':'🏁 '+s.prenom}</button>`;
         }).join('')}
       </div>
     </div>
 
-    <!-- Sélecteur élève -->
     <div style="display:flex;gap:6px;margin-bottom:8px;overflow-x:auto">
       ${eleves.map(s=>{
-        const g = diagState.grilles[s.id]||{};
-        const done = TECH_G3.filter(c=>g[c.id]!==undefined).length;
-        const isA  = String(s.id)===String(diagState.eleveActif);
+        const g=diagState.grilles[s.id]||{};
+        const done=TECH_G3.filter(c=>g[c.id]!==undefined).length;
+        const isA=String(s.id)===String(diagState.eleveActif);
         return `<button onclick="diagSetActif('${s.id}')"
           style="flex-shrink:0;padding:7px 12px;border-radius:10px;
           border:2px solid ${isA?'var(--teal)':'transparent'};
@@ -2264,10 +1992,9 @@ function renderDiagStep2(el) {
       }).join('')}
     </div>
 
-    <!-- Grille observation 50m -->
     <div class="eval-card">
-      <div class="eval-card-title">👁 Observation 50m NL souple — ${actif?actif.prenom+' '+actif.nom:''}</div>
-      <p style="font-size:11px;color:var(--mid);margin-bottom:12px">Sélectionner le comportement observé</p>
+      <div class="eval-card-title">👁 Observation 50m NL — ${actif?actif.prenom+' '+actif.nom:''}</div>
+      <p style="font-size:11px;color:var(--mid);margin-bottom:10px">Comportement observé — pas de note</p>
       ${TECH_G3.map(c=>{
         const val=grille[c.id];
         return `<div class="crit-block">
@@ -2278,8 +2005,7 @@ function renderDiagStep2(el) {
               const bg=isSel?(niv.v===2?'var(--ok)':niv.v===1?'var(--partial)':'var(--ko)'):'var(--gray)';
               const fg=isSel?(niv.v===2?'var(--okfg)':niv.v===1?'var(--partfg)':'var(--kofg)'):'var(--mid)';
               const ico=niv.v===2?'🟢':niv.v===1?'🟡':'🔴';
-              return `<button
-                data-diag-crit="${c.id}" data-diag-niv="${niv.v}"
+              return `<button data-diag-crit="${c.id}" data-diag-niv="${niv.v}"
                 onclick="diagSetNiveau('${diagState.eleveActif}','${c.id}',${niv.v})"
                 style="border:none;border-radius:8px;padding:8px 10px;text-align:left;
                 font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;
@@ -2297,8 +2023,8 @@ function renderDiagStep2(el) {
       <button class="ebtn teal" onclick="diagGoStep3()" ${!allFilled?'disabled':''}>
         ✅ Enregistrer le diagnostic${!allFilled?'<br><small style="font-weight:400;font-size:11px">Remplir les 6 critères pour tous les élèves</small>':''}
       </button>
-      <button class="ebtn gray" onclick="diagState.step=1;renderEvalDiag(document.getElementById('vit-body'))">← Retour</button>
-      <button class="ebtn danger" onclick="diagReset()" style="background:var(--g1)">↺ Réinitialiser</button>
+      <button class="ebtn gray" onclick="diagState.step=1;diagState.selectedIds=[];diagState.grilles={};renderEvalDiag(document.getElementById('vit-body'))">← Retour</button>
+      <button class="ebtn" style="background:var(--g1)" onclick="diagReset()">↺ Tout annuler</button>
     </div>`;
 }
 
@@ -2307,8 +2033,8 @@ function diagToggleChrono() {
   if(c.running){clearInterval(c.timer);c.running=false;}
   else{c.startMs=Date.now()-c.elapsed*1000;c.running=true;
     c.timer=setInterval(()=>{c.elapsed=(Date.now()-c.startMs)/1000;
-      const el=document.getElementById('diag-chrono');
-      if(el){el.textContent=fmtTime(c.elapsed);el.classList.add('running');}},50);}
+      const e=document.getElementById('diag-chrono');
+      if(e){e.textContent=fmtTime(c.elapsed);e.classList.add('running');}},50);}
   const btn=document.getElementById('diag-btn-go');
   if(btn){btn.textContent=c.running?'⏹ Stop':'▶ Go';btn.style.background=c.running?'var(--g1)':'var(--g3a)';}
 }
@@ -2343,8 +2069,7 @@ function diagSetNiveau(eleveId,critId,val){
     const fg=isSel?(bv===2?'var(--okfg)':bv===1?'var(--partfg)':'var(--kofg)'):'var(--mid)';
     btn.style.background=bg;btn.style.color=fg;btn.style.fontWeight=isSel?'700':'400';
   });
-  // Vérifier si tout est rempli
-  const allFilled=diagState.selectedIds.every(id=>TECH_G3.every(c=>diagState.grilles[id]&&diagState.grilles[id][c.id]!==undefined));
+  const allFilled=diagState.selectedIds.every(id=>TECH_G3.every(c=>(diagState.grilles[id]||{})[c.id]!==undefined));
   const btnV=document.querySelector('#vit-body .ebtn.teal');
   if(btnV) btnV.disabled=!allFilled;
 }
@@ -2356,16 +2081,13 @@ function diagGoStep3(){
   diagState.selectedIds.forEach(id=>{
     const eleve=all.find(s=>String(s.id)===String(id));
     if(!eleve) return;
-    if(!eleve.chronos) eleve.chronos=[];
+    if(!eleve.chronos)   eleve.chronos=[];
     if(!eleve.evalsTech) eleve.evalsTech=[];
-    // T1 = premier chrono (diagnostique)
-    if(diagState.temps[id]){
-      eleve.chronos.unshift({date:dateAuj,temps:diagState.temps[id],type:'diag'});
-    }
-    // Grille diagnostique
+    if(diagState.temps[id])
+      eleve.chronos.unshift({date:dateAuj, temps:diagState.temps[id], type:'diag'});
     const scores={};
-    TECH_G3.forEach(c=>{scores[c.id]=diagState.grilles[id][c.id]??0;});
-    eleve.evalsTech.unshift({date:dateAuj,scores,type:'diag'});
+    TECH_G3.forEach(c=>{scores[c.id]=(diagState.grilles[id]||{})[c.id]??0;});
+    eleve.evalsTech.unshift({date:dateAuj, scores, type:'diag'});
   });
   save();
   diagState.step=3;
@@ -2378,13 +2100,13 @@ function renderDiagStep3(el){
   el.innerHTML=`
     <div class="ef-steps">
       <div class="ef-step done">1 · Sélection</div>
-      <div class="ef-step done">2 · Chrono + Observation</div>
+      <div class="ef-step done">2 · Chrono + Obs.</div>
       <div class="ef-step cur">3 · Résumé</div>
     </div>
     <div class="banner g3a" style="margin-top:10px">
       <div class="bico">✅</div>
       <div class="btitle">Diagnostic enregistré</div>
-      <div class="bsub">T1 et observation initiale sauvegardés</div>
+      <div class="bsub">T1 et observation technique sauvegardés</div>
     </div>
     ${diagState.selectedIds.map(id=>{
       const s=all.find(e=>String(e.id)===String(id));
@@ -2397,22 +2119,23 @@ function renderDiagStep3(el){
         </div>
         ${t?`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gray)">
           <span>⏱</span><span style="flex:1;font-size:12px;color:var(--mid)">T1 référence</span>
-          <span style="font-family:'Inter',sans-serif;font-size:16px;font-weight:700;color:var(--navy)">${t}s</span>
-        </div>`:'<div style="font-size:11px;color:var(--g2dk)">⚠️ Pas de chrono enregistré</div>'}
+          <span style="font-family:'Inter',sans-serif;font-size:18px;font-weight:700;color:var(--navy)">${t}s</span>
+        </div>`:'<div style="font-size:11px;color:var(--g2dk);padding:4px 0">⚠️ Pas de chrono enregistré</div>'}
         ${TECH_G3.map(c=>{
           const v=g[c.id];
           const ico=v===2?'🟢':v===1?'🟡':v===0?'🔴':'⚫';
           const niv=c.niveaux.find(n=>n.v===v);
           return `<div style="display:flex;align-items:center;gap:7px;padding:4px 0">
-            <span style="font-size:12px">${c.ico}</span>
-            <span style="font-size:11px;color:var(--mid);flex:1">${c.lbl}</span>
+            <span>${c.ico}</span>
+            <span style="flex:1;font-size:12px;color:var(--mid)">${c.lbl}</span>
             <span>${ico}</span>
+            <span style="font-size:11px;color:var(--mid)">${niv?niv.txt:''}</span>
           </div>`;
         }).join('')}
       </div>`;
     }).join('')}
     <div class="ebtns">
-      <button class="ebtn teal" onclick="diagReset();switchModTab('vit','diag')">✓ Nouvelle série</button>
+      <button class="ebtn teal" onclick="diagReset()">✓ Nouvelle série</button>
       <button class="ebtn gray" onclick="switchModTab('vit','eleves')">← Retour aux élèves</button>
     </div>`;
 }
@@ -2421,10 +2144,4 @@ function renderDiagStep3(el){
 load();
 updateHomeCounts();
 
-// Délégation d'événement globale pour les boutons fiche bilan
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.btn-open-fiche');
-  if (btn && btn.dataset.eid) {
-    bilanOpenFiche(btn.dataset.eid);
-  }
-});
+
