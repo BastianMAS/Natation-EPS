@@ -182,8 +182,7 @@ function renderStuCard(s, mod) {
     : s.groupe==='2' ? 'Natation d\'Endurance'
     : s.groupe==='1' ? 'Savoir Nager · Non nageur'
     : etapeLabel(s);
-  const onclick = `onclick="openStudent('${s.id}')"`;
-  return `<div class="stu-card ${gc}" ${onclick}>
+  return `<div class="stu-card ${gc} stu-open" data-student-id="${s.id}">
     <div class="avatar ${avc}">${ini}</div>
     <div style="flex:1;min-width:0">
       <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
@@ -972,7 +971,7 @@ function renderAssnEleves(el) {
         </div>` :
         aTester.map(s=>{
           const ini=(s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase();
-          return `<div class="stu-card pend" onclick="openStudent('${s.id}')">
+          return `<div class="stu-card pend stu-open" data-student-id="${s.id}">
             <div class="avatar avp">${ini}</div>
             <div style="flex:1;min-width:0">
               <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
@@ -991,7 +990,7 @@ function renderAssnEleves(el) {
           const ini=(s.prenom[0]||'').toUpperCase()+(s.nom[0]||'').toUpperCase();
           const ko=Object.entries(s.criteres||{}).filter(([,v])=>v===false).length;
           const koAtt=Object.entries(s.attitudes||{}).filter(([,v])=>v===false).length;
-          return `<div class="stu-card g1" onclick="openStudent('${s.id}')">
+          return `<div class="stu-card g1 stu-open" data-student-id="${s.id}">
             <div class="avatar av1">${ini}</div>
             <div style="flex:1;min-width:0">
               <div class="stu-name">${s.prenom} ${s.nom}${s.note?' <span style="font-size:11px">⚡</span>':''}</div>
@@ -2725,6 +2724,12 @@ updateHomeCounts();
 document.addEventListener('click', e => {
   const row = e.target.closest('.bilan-fiche-row');
   if (row && row.dataset.bilanId) bilanOpenFiche(row.dataset.bilanId);
+});
+
+// Délégation — ouvrir fiche élève
+document.addEventListener('click', e => {
+  const card = e.target.closest('.stu-open');
+  if (card && card.dataset.studentId) openStudent(card.dataset.studentId);
 });
 
 
