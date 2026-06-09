@@ -267,6 +267,14 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   background:var(--gray);color:var(--mid)}
 .ef-step.cur{background:var(--navy);color:#fff}
 .ef-step.done{background:var(--teal);color:#fff}
+.search-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:var(--navy);border-top:1px solid rgba(255,255,255,.1);flex-shrink:0}
+.search-input{flex:1;background:rgba(255,255,255,.12);border:none;border-radius:20px;
+  padding:8px 14px;color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;outline:none}
+.search-input::placeholder{color:rgba(255,255,255,.4)}
+.search-input:focus{background:rgba(255,255,255,.18)}
+.search-clear{background:transparent;border:none;color:rgba(255,255,255,.5);
+  font-size:16px;cursor:pointer;padding:4px;flex-shrink:0}
 .hidden{display:none!important}
 
 @media print {
@@ -425,6 +433,15 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
     <button class="mod-tab on" id="assn-tab-eleves" onclick="switchModTab('assn','eleves')">Élèves</button>
     <button class="mod-tab" id="assn-tab-presences" onclick="switchModTab('assn','presences')">Présences</button>
   </div>
+  <div class="search-bar" id="assn-search-bar">
+    <span style="font-size:15px;opacity:.6">🔍</span>
+    <input class="search-input" id="assn-search-input" type="search"
+      placeholder="Rechercher un élève…"
+      oninput="searchEleve('assn', this.value)"
+      onsearch="searchEleve('assn', this.value)">
+    <button class="search-clear" id="assn-search-clear"
+      onclick="clearSearch('assn')" style="display:none">✕</button>
+  </div>
   <div class="body" id="assn-body"></div>
 </div>
 
@@ -438,6 +455,15 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   <div class="mod-tabs">
     <button class="mod-tab on" id="end-tab-eleves" onclick="switchModTab('end','eleves')">Élèves</button>
     <button class="mod-tab" id="end-tab-presences" onclick="switchModTab('end','presences')">Présences</button>
+  </div>
+  <div class="search-bar" id="end-search-bar">
+    <span style="font-size:15px;opacity:.6">🔍</span>
+    <input class="search-input" id="end-search-input" type="search"
+      placeholder="Rechercher un élève…"
+      oninput="searchEleve('end', this.value)"
+      onsearch="searchEleve('end', this.value)">
+    <button class="search-clear" id="end-search-clear"
+      onclick="clearSearch('end')" style="display:none">✕</button>
   </div>
   <div class="body" id="end-body"></div>
 </div>
@@ -457,6 +483,15 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
     <button class="mod-tab" id="vit-tab-diag" onclick="switchModTab('vit','diag')">🔍 Éval Diag</button>
     <button class="mod-tab" id="vit-tab-eval" onclick="openEvalFinale()">📋 Éval Finale</button>
     <button class="mod-tab" id="vit-tab-bilan" onclick="switchModTab('vit','bilan')">📊 Bilan</button>
+  </div>
+  <div class="search-bar" id="vit-search-bar">
+    <span style="font-size:15px;opacity:.6">🔍</span>
+    <input class="search-input" id="vit-search-input" type="search"
+      placeholder="Rechercher un élève…"
+      oninput="searchEleve('vit', this.value)"
+      onsearch="searchEleve('vit', this.value)">
+    <button class="search-clear" id="vit-search-clear"
+      onclick="clearSearch('vit')" style="display:none">✕</button>
   </div>
   <div class="body" id="vit-body"></div>
 </div>

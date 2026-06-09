@@ -103,6 +103,7 @@ function openModule(mod) {
   const tabEl = document.getElementById(`${mod}-tab-eleves`);
   if (tabEl) tabEl.classList.add('on');
   renderModuleTab(mod, 'eleves');
+  updateSearchVisibility(mod, 'eleves');
   showScreen(`screen-${mod}`);
 }
 
@@ -111,6 +112,7 @@ function switchModTab(mod, tab) {
   document.querySelectorAll(`[id^="${mod}-tab-"]`).forEach(t=>t.classList.remove('on'));
   const tabEl = document.getElementById(`${mod}-tab-${tab}`);
   if (tabEl) tabEl.classList.add('on');
+  updateSearchVisibility(mod, tab);
   renderModuleTab(mod, tab);
 }
 
@@ -145,7 +147,8 @@ function updateHomeCounts() {
 // ── ÉLÈVES PAR MODULE ─────────────────────────
 function renderModuleEleves(mod, el) {
   if (mod==='assn') { renderAssnEleves(el); return; }
-  const ss = getModuleStudents(mod).sort((a,b)=>a.nom.localeCompare(b.nom));
+  let ss = getModuleStudents(mod).sort((a,b)=>a.nom.localeCompare(b.nom));
+  ss = filterBySearch(ss, mod);
 
   if (mod==='end') {
     // Coming soon pour endurance
@@ -935,10 +938,12 @@ function deleteClass(cls){
 
 function renderAssnEleves(el) {
   const all  = Object.values(classes).flat();
+  const q    = (searchQueries['assn']||'').toLowerCase();
+  const match = s => !q || (s.nom||'').toLowerCase().includes(q) || (s.prenom||'').toLowerCase().includes(q);
   // À tester = pas de groupe
-  const aTester = all.filter(s=>!s.groupe).sort((a,b)=>a.nom.localeCompare(b.nom));
+  const aTester = all.filter(s=>!s.groupe&&match(s)).sort((a,b)=>a.nom.localeCompare(b.nom));
   // G1 = groupe 1
-  const g1 = all.filter(s=>s.groupe==='1').sort((a,b)=>a.nom.localeCompare(b.nom));
+  const g1 = all.filter(s=>s.groupe==='1'&&match(s)).sort((a,b)=>a.nom.localeCompare(b.nom));
 
   const tab = window._assnTab || 'attester';
 
@@ -1001,6 +1006,48 @@ function renderAssnEleves(el) {
           </div>`;
         }).join('')}
     `}`;
+}
+
+
+// ══════════════════════════════════════════════
+// RECHERCHE RAPIDE D'ÉLÈVE
+// ══════════════════════════════════════════════
+
+let searchQueries = { assn:'', end:'', vit:'' };
+
+function searchEleve(mod, query) {
+  searchQueries[mod] = query.toLowerCase().trim();
+  const clearBtn = document.getElementById(mod+'-search-clear');
+  if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+  renderModuleTab(mod, modTabs[mod]);
+}
+
+function clearSearch(mod) {
+  searchQueries[mod] = '';
+  const input = document.getElementById(mod+'-search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById(mod+'-search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderModuleTab(mod, modTabs[mod]);
+}
+
+function filterBySearch(ss, mod) {
+  const q = searchQueries[mod] || '';
+  if (!q) return ss;
+  return ss.filter(s =>
+    (s.nom||'').toLowerCase().includes(q) ||
+    (s.prenom||'').toLowerCase().includes(q) ||
+    (s.classe||'').toLowerCase().includes(q)
+  );
+}
+
+// Masquer la barre de recherche sur les onglets non-élèves
+function updateSearchVisibility(mod, tab) {
+  const bar = document.getElementById(mod+'-search-bar');
+  if (!bar) return;
+  // Visible uniquement sur les onglets élèves et bilan
+  const showOn = ['eleves', 'bilan'];
+  bar.style.display = showOn.includes(tab) ? 'flex' : 'none';
 }
 
 // ── IMPORT ───────────────────────────────────
@@ -1798,7 +1845,8 @@ function renderEFStep3(el) {
 function renderSerieInline(el) {
   // Utilise l'objet serie global mais avec IDs dédiés pour ne pas confliter
   const all = Object.values(classes).flat();
-  const ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+  let ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+  ss = filterBySearch(ss, 'vit');
   const cID = 'si-chrono'; // IDs uniques pour la serie inline
 
   el.innerHTML = `
@@ -2250,7 +2298,8 @@ function renderDiagStep3(el){
 
 function renderBilanVitesse(el) {
   const all = Object.values(classes).flat();
-  const ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+  let ss  = all.filter(s=>s.groupe==='3').sort((a,b)=>a.nom.localeCompare(b.nom));
+  ss = filterBySearch(ss, 'vit');
 
   if (!ss.length) {
     el.innerHTML = `<div class="empty"><div class="eico">📊</div><h3>Aucun élève G3</h3><p>Les élèves orientés Vitesse apparaîtront ici.</p></div>`;
