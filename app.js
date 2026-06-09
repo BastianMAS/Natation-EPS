@@ -1252,7 +1252,55 @@ function closeModal(){document.getElementById('modal').classList.add('hidden');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(toastTmr);toastTmr=setTimeout(()=>t.classList.add('hidden'),2500);}
 
 // ── SW ────────────────────────────────────────
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      // Vérifier les mises à jour toutes les 60 secondes
+      setInterval(() => reg.update(), 60000);
+
+      // Si une nouvelle version est trouvée → notifier l'utilisateur
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // Nouvelle version disponible
+            showUpdateBanner();
+          }
+        });
+      });
+    }).catch(() => {});
+
+    // Rechargement automatique après activation du nouveau SW
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
+  });
+}
+
+function showUpdateBanner() {
+  // Bannière discrète en bas de page
+  const banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.style.cssText = `position:fixed;bottom:0;left:0;right:0;z-index:9999;
+    background:var(--teal);color:#fff;padding:12px 20px;
+    display:flex;align-items:center;justify-content:space-between;
+    font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;
+    box-shadow:0 -4px 20px rgba(0,0,0,.2);`;
+  banner.innerHTML = `
+    <span>🔄 Nouvelle version disponible</span>
+    <button onclick="applyUpdate()" style="background:rgba(255,255,255,.25);border:none;
+      border-radius:8px;padding:6px 14px;color:#fff;font-family:'DM Sans',sans-serif;
+      font-size:13px;font-weight:700;cursor:pointer">Mettre à jour</button>`;
+  document.body.appendChild(banner);
+}
+
+function applyUpdate() {
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage('SKIP_WAITING');
+  }
+  const banner = document.getElementById('update-banner');
+  if (banner) banner.remove();
+}
 
 
 
