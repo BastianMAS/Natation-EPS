@@ -77,10 +77,6 @@ function fmtDateLong(iso) {
 setInterval(()=>{ if(Object.keys(classes).length) save(); }, 30000);
 
 // ── NAVIGATION ───────────────────────────────
-function isTabletLandscape() {
-  return window.innerWidth >= 768 && window.innerWidth > window.innerHeight;
-}
-
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const el = document.getElementById(id);
@@ -88,10 +84,6 @@ function showScreen(id) {
   el.classList.add('active');
   if (id==='screen-classes') renderClasses();
   if (id==='screen-home') updateHomeCounts();
-  // Sur tablette paysage, home reste toujours visible
-  if (isTabletLandscape() && id!=='screen-home') {
-    document.getElementById('screen-home').classList.add('active');
-  }
 }
 
 // ── MODULES ──────────────────────────────────
