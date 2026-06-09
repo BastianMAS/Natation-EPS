@@ -434,6 +434,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   <div class="mod-tabs">
     <button class="mod-tab on" id="assn-tab-eleves" onclick="switchModTab('assn','eleves')">Élèves</button>
     <button class="mod-tab" id="assn-tab-presences" onclick="switchModTab('assn','presences')">Présences</button>
+    <button class="mod-tab" id="assn-tab-journal" onclick="switchModTab('assn','journal')">📓 Journal</button>
   </div>
   <div class="search-bar" id="assn-search-bar">
     <span style="font-size:15px;opacity:.6">🔍</span>
@@ -457,6 +458,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   <div class="mod-tabs">
     <button class="mod-tab on" id="end-tab-eleves" onclick="switchModTab('end','eleves')">Élèves</button>
     <button class="mod-tab" id="end-tab-presences" onclick="switchModTab('end','presences')">Présences</button>
+    <button class="mod-tab" id="end-tab-journal" onclick="switchModTab('end','journal')">📓 Journal</button>
   </div>
   <div class="search-bar" id="end-search-bar">
     <span style="font-size:15px;opacity:.6">🔍</span>
@@ -481,6 +483,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   <div class="mod-tabs">
     <button class="mod-tab on" id="vit-tab-eleves" onclick="switchModTab('vit','eleves')">Élèves</button>
     <button class="mod-tab" id="vit-tab-presences" onclick="switchModTab('vit','presences')">Présences</button>
+    <button class="mod-tab" id="vit-tab-journal" onclick="switchModTab('vit','journal')">📓 Journal</button>
     <button class="mod-tab" id="vit-tab-serie" onclick="switchModTab('vit','serie')">🏁 Série</button>
     <button class="mod-tab" id="vit-tab-diag" onclick="switchModTab('vit','diag')">🔍 Éval Diag</button>
     <button class="mod-tab" id="vit-tab-eval" onclick="openEvalFinale()">📋 Éval Finale</button>
@@ -569,6 +572,16 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;line-heigh
   </div>
   <div id="g2-alert" class="alert-bar hidden"></div>
   <div class="body" id="g2-body"></div>
+</div>
+
+
+<!-- ══ JOURNAL ÉDITEUR ══ -->
+<div id="screen-journal-editor" class="screen">
+  <div class="hdr default" id="journal-editor-hdr">
+    <button class="btn-back" onclick="jedAnnuler()">←</button>
+    <h2>📓 Séance</h2>
+  </div>
+  <div class="body" id="journal-editor-body"></div>
 </div>
 
 <!-- ══ MODAL ══ -->

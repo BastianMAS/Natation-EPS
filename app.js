@@ -123,7 +123,8 @@ function renderModuleTab(mod, tab) {
   else if (tab==='presences') renderPresencesTable(mod, el);
   else if (tab==='serie') { renderSerieInline(el); }
   else if (tab==='diag')  renderEvalDiag(el);
-  else if (tab==='bilan') renderBilanVitesse(el);
+  else if (tab==='bilan')   renderBilanVitesse(el);
+  else if (tab==='journal')  renderJournal(mod, el);
 
 }
 
@@ -2781,3 +2782,420 @@ document.addEventListener('click', e => {
 });
 
 
+
+// ══════════════════════════════════════════════
+// JOURNAL DE SÉANCES
+// ══════════════════════════════════════════════
+
+const NAGES = ['Crawl','Dos','Brasse','Papillon','Libre','4 nages'];
+const MATERIELS = ['Aucun','Planche','Pull-buoy','Palmes','Plaquettes','Ceinture','Brassards','Tuba'];
+const INTENSITES = [
+  {val:'lent',   lbl:'🟢 Lent',    color:'var(--g3abg)', fg:'var(--g3adk)'},
+  {val:'modere', lbl:'🟡 Modéré',  color:'var(--partial)',fg:'var(--partfg)'},
+  {val:'rapide', lbl:'🔴 Rapide',  color:'var(--ko)',    fg:'var(--kofg)'},
+];
+const THEMES = ['Technique','Endurance','Vitesse','Mixte','Évaluation','Découverte'];
+
+// Structure données journal
+// classes._journal = { 'assn': [...seances], 'end': [...], 'vit': [...] }
+
+function getJournal(mod) {
+  if (!classes._journal) classes._journal = {};
+  if (!classes._journal[mod]) classes._journal[mod] = [];
+  return classes._journal[mod];
+}
+
+function journalVolume(exercices) {
+  let total = 0;
+  exercices.forEach(ex => {
+    const rep = parseInt(ex.repetitions)||1;
+    const dist = parseInt(ex.distance)||0;
+    total += rep * dist;
+  });
+  return total;
+}
+
+// ── RENDU PRINCIPAL ──
+function renderJournal(mod, el) {
+  const seances = getJournal(mod);
+  const modLabels = {assn:'Savoir Nager', end:'Endurance', vit:'Vitesse'};
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--navy)">
+        📓 Journal — ${modLabels[mod]||mod}
+      </div>
+      <button onclick="journalNouvelleSeance('${mod}')"
+        style="background:var(--teal);color:#fff;border:none;border-radius:10px;
+        padding:9px 16px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+        ＋ Nouvelle séance
+      </button>
+    </div>
+
+    ${!seances.length ? `
+    <div class="empty">
+      <div class="eico">📓</div>
+      <h3>Aucune séance</h3>
+      <p>Commence par créer ta première séance.</p>
+    </div>` :
+    [...seances].reverse().map((s,i) => {
+      const idx = seances.length-1-i;
+      const vol = journalVolume(s.exercices||[]);
+      const theme = s.theme||'';
+      const themeColor = theme==='Évaluation'?'var(--g1bg)':theme==='Vitesse'?'var(--g3abg)':
+        theme==='Endurance'?'var(--g2bg)':theme==='Technique'?'var(--g3bbg)':'var(--gray)';
+      const themeFg = theme==='Évaluation'?'var(--g1dk)':theme==='Vitesse'?'var(--g3adk)':
+        theme==='Endurance'?'var(--g2dk)':theme==='Technique'?'var(--g3bdk)':'var(--mid)';
+      return `
+      <div style="background:#fff;border-radius:12px;margin-bottom:8px;
+        box-shadow:0 1px 8px rgba(10,37,64,.07);overflow:hidden;
+        border-left:3px solid var(--teal)">
+        <!-- Header séance -->
+        <div style="padding:12px 14px;cursor:pointer" onclick="journalToggle('${mod}',${idx})">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--navy);flex:1">
+              ${fmtDateLong(s.date)} — Séance ${idx+1}
+            </div>
+            ${theme?`<span style="background:${themeColor};color:${themeFg};border-radius:7px;
+              padding:2px 8px;font-size:10px;font-weight:700">${theme}</span>`:''}
+            <span style="color:var(--lite);font-size:14px" id="journal-arrow-${mod}-${idx}">▾</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--mid)">📏 ${vol?vol+'m total':'Volume non calc.'}</span>
+            <span style="font-size:11px;color:var(--mid)">🏊 ${(s.exercices||[]).length} exercice${(s.exercices||[]).length>1?'s':''}</span>
+            ${s.objectif?`<span style="font-size:11px;color:var(--mid)">🎯 ${s.objectif}</span>`:''}
+          </div>
+        </div>
+        <!-- Contenu dépliable -->
+        <div id="journal-content-${mod}-${idx}" style="display:none;border-top:1px solid var(--gray)">
+          <div style="padding:12px 14px">
+            ${s.objectif?`<div style="background:var(--g3bbg);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--g3bdk)">
+              🎯 <strong>Objectif :</strong> ${s.objectif}
+            </div>`:''}
+            ${s.nbPresents?`<div style="font-size:11px;color:var(--mid);margin-bottom:8px">👥 ${s.nbPresents} élève${s.nbPresents>1?'s':''} présent${s.nbPresents>1?'s':''}</div>`:''}
+            <!-- Exercices -->
+            ${(s.exercices||[]).map((ex,ei) => `
+            <div style="background:var(--gray);border-radius:10px;padding:10px 12px;margin-bottom:6px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <div style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 7px;
+                  font-size:10px;font-weight:700;flex-shrink:0">${ei+1}</div>
+                <div style="font-weight:700;font-size:13px;color:var(--navy);flex:1">${ex.titre||'Exercice'}</div>
+                ${ex.intensite ? `<span style="background:${INTENSITES.find(i=>i.val===ex.intensite)?.color||'var(--gray)'};
+                  color:${INTENSITES.find(i=>i.val===ex.intensite)?.fg||'var(--mid)'};
+                  border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">
+                  ${INTENSITES.find(i=>i.val===ex.intensite)?.lbl||ex.intensite}</span>` : ''}
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--mid)">
+                ${ex.repetitions&&ex.distance?`<span>📏 ${ex.repetitions}×${ex.distance}m${ex.repetitions>1?' ('+ex.repetitions*parseInt(ex.distance)+'m)':''}</span>`:''}
+                ${ex.nage?`<span>🏊 ${ex.nage}</span>`:''}
+                ${ex.materiel&&ex.materiel!=='Aucun'?`<span>🎽 ${ex.materiel}</span>`:''}
+              </div>
+              ${ex.consigne?`<div style="font-size:11px;color:var(--g3bdk);margin-top:4px;font-style:italic">💡 ${ex.consigne}</div>`:''}
+            </div>`).join('')}
+            <!-- Actions séance -->
+            <div style="display:flex;gap:7px;margin-top:10px">
+              <button onclick="journalEditSeance('${mod}',${idx})"
+                style="flex:1;background:var(--navy);color:#fff;border:none;border-radius:8px;
+                padding:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">
+                ✏️ Modifier
+              </button>
+              <button onclick="journalDupliquer('${mod}',${idx})"
+                style="flex:1;background:var(--teal);color:#fff;border:none;border-radius:8px;
+                padding:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">
+                📋 Dupliquer
+              </button>
+              <button onclick="journalSupprimer('${mod}',${idx})"
+                style="background:transparent;border:1px solid var(--lite);color:var(--mid);border-radius:8px;
+                padding:8px 12px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer">
+                🗑
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+function journalToggle(mod, idx) {
+  const content = document.getElementById(`journal-content-${mod}-${idx}`);
+  const arrow   = document.getElementById(`journal-arrow-${mod}-${idx}`);
+  if (!content) return;
+  const isOpen = content.style.display === 'block';
+  content.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? '▾' : '▴';
+}
+
+// ── ÉDITEUR DE SÉANCE ──
+let journalEditState = {
+  mod: null, idx: null, // null = nouvelle séance
+  seance: null,
+};
+
+function journalNouvelleSeance(mod) {
+  journalEditState = {
+    mod, idx: null,
+    seance: {
+      date: today(),
+      theme: '',
+      objectif: '',
+      nbPresents: '',
+      exercices: [],
+    }
+  };
+  renderJournalEditor();
+  showScreen('screen-journal-editor');
+}
+
+function journalEditSeance(mod, idx) {
+  const seances = getJournal(mod);
+  journalEditState = {
+    mod, idx,
+    seance: JSON.parse(JSON.stringify(seances[idx])) // deep copy
+  };
+  renderJournalEditor();
+  showScreen('screen-journal-editor');
+}
+
+function journalDupliquer(mod, idx) {
+  const seances = getJournal(mod);
+  const copy = JSON.parse(JSON.stringify(seances[idx]));
+  copy.date = today();
+  journalEditState = { mod, idx: null, seance: copy };
+  renderJournalEditor();
+  showScreen('screen-journal-editor');
+  showToast('📋 Séance dupliquée — modifie si besoin');
+}
+
+function journalSupprimer(mod, idx) {
+  const seances = getJournal(mod);
+  showModal('Supprimer cette séance ?', () => {
+    seances.splice(idx, 1);
+    save();
+    const el = document.getElementById(`${mod}-body`);
+    if (el) renderJournal(mod, el);
+    showToast('Séance supprimée');
+  });
+}
+
+function renderJournalEditor() {
+  const el = document.getElementById('journal-editor-body');
+  if (!el) return;
+  const s = journalEditState.seance;
+
+  el.innerHTML = `
+    <!-- Infos générales -->
+    <div class="eval-card">
+      <div class="eval-card-title">📅 Informations de la séance</div>
+
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:var(--mid);display:block;margin-bottom:5px">DATE</label>
+        <input type="date" id="jed-date" value="${s.date}"
+          style="width:100%;padding:9px 12px;border:2px solid var(--gray);border-radius:9px;
+          font-family:'DM Sans',sans-serif;font-size:14px;color:var(--navy);background:#fff;outline:none"
+          onchange="journalEditState.seance.date=this.value">
+      </div>
+
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:var(--mid);display:block;margin-bottom:5px">THÈME</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${THEMES.map(t=>`<button onclick="jedSetTheme('${t}')"
+            style="padding:6px 12px;border-radius:8px;border:2px solid ${s.theme===t?'var(--teal)':'var(--gray)'};
+            background:${s.theme===t?'var(--teal)':'#fff'};color:${s.theme===t?'#fff':'var(--mid)'};
+            font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">
+            ${t}
+          </button>`).join('')}
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:var(--mid);display:block;margin-bottom:5px">OBJECTIF DE SÉANCE</label>
+        <input type="text" id="jed-objectif" value="${s.objectif||''}" placeholder="ex: Travail de la coulée ventrale"
+          style="width:100%;padding:9px 12px;border:2px solid var(--gray);border-radius:9px;
+          font-family:'DM Sans',sans-serif;font-size:13px;color:var(--navy);background:#fff;outline:none"
+          oninput="journalEditState.seance.objectif=this.value">
+      </div>
+
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--mid);display:block;margin-bottom:5px">NB ÉLÈVES PRÉSENTS</label>
+        <input type="number" id="jed-presents" value="${s.nbPresents||''}" placeholder="ex: 24" min="0" max="40"
+          style="width:100%;padding:9px 12px;border:2px solid var(--gray);border-radius:9px;
+          font-family:'DM Sans',sans-serif;font-size:14px;color:var(--navy);background:#fff;outline:none"
+          oninput="journalEditState.seance.nbPresents=parseInt(this.value)||''">
+      </div>
+    </div>
+
+    <!-- Exercices -->
+    <div class="eval-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="eval-card-title" style="margin-bottom:0">🏊 Exercices</div>
+        <button onclick="jedAddExercice()"
+          style="background:var(--teal);color:#fff;border:none;border-radius:8px;
+          padding:7px 13px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer">
+          ＋ Exercice
+        </button>
+      </div>
+
+      ${!(s.exercices||[]).length ? `
+      <div style="text-align:center;padding:20px;color:var(--mid);font-size:13px">
+        Aucun exercice. Appuie sur ＋ pour ajouter.
+      </div>` :
+      s.exercices.map((ex,i) => `
+      <div style="background:var(--gray);border-radius:10px;padding:12px;margin-bottom:8px" id="jed-ex-${i}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="background:var(--navy);color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">${i+1}</div>
+          <input type="text" value="${ex.titre||''}" placeholder="Intitulé de l'exercice"
+            style="flex:1;padding:7px 10px;border:1px solid rgba(10,37,64,.1);border-radius:8px;
+            font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:var(--navy);background:#fff;outline:none"
+            oninput="journalEditState.seance.exercices[${i}].titre=this.value">
+          <div style="display:flex;gap:4px">
+            ${i>0?`<button onclick="jedMoveEx(${i},-1)"
+              style="background:#fff;border:1px solid var(--gray);border-radius:6px;padding:4px 7px;cursor:pointer;font-size:12px">↑</button>`:''}
+            ${i<s.exercices.length-1?`<button onclick="jedMoveEx(${i},1)"
+              style="background:#fff;border:1px solid var(--gray);border-radius:6px;padding:4px 7px;cursor:pointer;font-size:12px">↓</button>`:''}
+            <button onclick="jedDelExercice(${i})"
+              style="background:#fff;border:1px solid var(--lite);border-radius:6px;padding:4px 8px;
+              cursor:pointer;font-size:12px;color:var(--mid)">🗑</button>
+          </div>
+        </div>
+
+        <!-- Distance + Répétitions -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--mid);margin-bottom:4px">RÉPÉTITIONS</div>
+            <input type="number" value="${ex.repetitions||''}" placeholder="ex: 4" min="1"
+              style="width:100%;padding:7px;border:1px solid rgba(10,37,64,.1);border-radius:7px;
+              font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--navy);
+              background:#fff;outline:none;text-align:center"
+              oninput="journalEditState.seance.exercices[${i}].repetitions=this.value">
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--mid);margin-bottom:4px">DISTANCE (m)</div>
+            <input type="number" value="${ex.distance||''}" placeholder="ex: 25" min="0" step="5"
+              style="width:100%;padding:7px;border:1px solid rgba(10,37,64,.1);border-radius:7px;
+              font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--navy);
+              background:#fff;outline:none;text-align:center"
+              oninput="journalEditState.seance.exercices[${i}].distance=this.value">
+          </div>
+        </div>
+
+        <!-- Nage -->
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:var(--mid);margin-bottom:4px">NAGE</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${NAGES.map(n=>`<button onclick="jedSetNage(${i},'${n}')"
+              style="padding:5px 10px;border-radius:7px;border:1px solid ${ex.nage===n?'var(--navy)':'var(--gray)'};
+              background:${ex.nage===n?'var(--navy)':'#fff'};color:${ex.nage===n?'#fff':'var(--mid)'};
+              font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+              ${n}
+            </button>`).join('')}
+          </div>
+        </div>
+
+        <!-- Matériel -->
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:var(--mid);margin-bottom:4px">MATÉRIEL</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${MATERIELS.map(m=>`<button onclick="jedSetMateriel(${i},'${m}')"
+              style="padding:5px 10px;border-radius:7px;border:1px solid ${ex.materiel===m?'var(--teal)':'var(--gray)'};
+              background:${ex.materiel===m?'var(--teal)':'#fff'};color:${ex.materiel===m?'#fff':'var(--mid)'};
+              font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer">
+              ${m}
+            </button>`).join('')}
+          </div>
+        </div>
+
+        <!-- Intensité -->
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:var(--mid);margin-bottom:4px">INTENSITÉ</div>
+          <div style="display:flex;gap:6px">
+            ${INTENSITES.map(it=>`<button onclick="jedSetIntensite(${i},'${it.val}')"
+              style="flex:1;padding:6px;border-radius:7px;border:2px solid ${ex.intensite===it.val?it.fg:'var(--gray)'};
+              background:${ex.intensite===it.val?it.color:'#fff'};color:${ex.intensite===it.val?it.fg:'var(--mid)'};
+              font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+              ${it.lbl}
+            </button>`).join('')}
+          </div>
+        </div>
+
+        <!-- Consigne -->
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mid);margin-bottom:4px">CONSIGNE CLÉ</div>
+          <input type="text" value="${ex.consigne||''}" placeholder="ex: Expirer sous l'eau, tête dans l'axe"
+            style="width:100%;padding:7px 10px;border:1px solid rgba(10,37,64,.1);border-radius:7px;
+            font-family:'DM Sans',sans-serif;font-size:12px;color:var(--navy);background:#fff;outline:none"
+            oninput="journalEditState.seance.exercices[${i}].consigne=this.value">
+        </div>
+      </div>`).join('')}
+
+      <!-- Volume total -->
+      ${(s.exercices||[]).length ? `
+      <div style="background:var(--g3abg);border-radius:8px;padding:8px 12px;text-align:center;margin-top:4px">
+        <span style="font-size:12px;font-weight:700;color:var(--g3adk)">
+          📏 Volume total : ${journalVolume(s.exercices)}m
+        </span>
+      </div>` : ''}
+    </div>
+
+    <!-- Sauvegarder -->
+    <div class="ebtns">
+      <button class="ebtn teal" onclick="jedSauvegarder()">✅ Sauvegarder la séance</button>
+      <button class="ebtn gray" onclick="jedAnnuler()">← Annuler</button>
+    </div>`;
+}
+
+// ── Helpers éditeur ──
+function jedSetTheme(t) {
+  journalEditState.seance.theme = journalEditState.seance.theme===t ? '' : t;
+  renderJournalEditor();
+}
+function jedAddExercice() {
+  journalEditState.seance.exercices.push({
+    titre:'', repetitions:'', distance:'',
+    nage:'', materiel:'Aucun', intensite:'', consigne:''
+  });
+  renderJournalEditor();
+  // Scroll vers le nouvel exercice
+  setTimeout(()=>{
+    const body = document.getElementById('journal-editor-body');
+    if (body) body.scrollTop = body.scrollHeight;
+  }, 50);
+}
+function jedDelExercice(i) {
+  journalEditState.seance.exercices.splice(i,1);
+  renderJournalEditor();
+}
+function jedMoveEx(i, dir) {
+  const exs = journalEditState.seance.exercices;
+  const j = i+dir;
+  if (j<0||j>=exs.length) return;
+  [exs[i], exs[j]] = [exs[j], exs[i]];
+  renderJournalEditor();
+}
+function jedSetNage(i, v) {
+  journalEditState.seance.exercices[i].nage = v;
+  renderJournalEditor();
+}
+function jedSetMateriel(i, v) {
+  journalEditState.seance.exercices[i].materiel = v;
+  renderJournalEditor();
+}
+function jedSetIntensite(i, v) {
+  journalEditState.seance.exercices[i].intensite = journalEditState.seance.exercices[i].intensite===v?'':v;
+  renderJournalEditor();
+}
+function jedSauvegarder() {
+  const s   = journalEditState.seance;
+  const mod = journalEditState.mod;
+  const idx = journalEditState.idx;
+  const seances = getJournal(mod);
+  if (idx !== null) seances[idx] = s;
+  else seances.push(s);
+  save();
+  showToast('✅ Séance sauvegardée');
+  jedAnnuler();
+}
+function jedAnnuler() {
+  const mod = journalEditState.mod;
+  showScreen(`screen-${mod}`);
+  switchModTab(mod, 'journal');
+}
