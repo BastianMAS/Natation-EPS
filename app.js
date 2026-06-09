@@ -151,18 +151,12 @@ function renderModuleEleves(mod, el) {
   ss = filterBySearch(ss, mod);
 
   if (mod==='end') {
-    // Coming soon pour endurance
-    el.innerHTML = `
-      <div style="margin-bottom:12px">
-        ${ss.length ? ss.map(s=>renderStuCard(s, mod)).join('') :
-          '<div class="empty"><div class="eico">🏃</div><h3>Aucun élève G2</h3><p>Les élèves orientés Endurance apparaîtront ici.</p></div>'}
-      </div>
-      <div class="coming-soon" style="padding:24px;background:#fff;border-radius:14px;box-shadow:0 1px 8px rgba(10,37,64,.07)">
-        <div class="cs-ico">🔜</div>
-        <div class="cs-title">Évaluation Endurance</div>
-        <div class="cs-sub">Les critères d'évaluation spécifiques à la natation d'endurance seront disponibles dans une prochaine mise à jour.</div>
-        <span class="cs-badge">Coming Soon</span>
-      </div>`;
+    if (!ss.length) {
+      el.innerHTML = `<div class="empty"><div class="eico">🏃</div><h3>Aucun élève G2</h3>
+        <p>Les élèves orientés Natation d'Endurance apparaîtront ici.</p></div>`;
+      return;
+    }
+    el.innerHTML = ss.map(s=>renderStuCard(s, mod)).join('');
     return;
   }
 
@@ -393,6 +387,7 @@ function openStudent(id) {
   });
 
   if (curStudent.groupe==='3') openFicheG3();
+  else if (curStudent.groupe==='2') openFicheG2();
   else openEval();
 }
 
@@ -2580,6 +2575,146 @@ function mailFiche() {
   corps += '\nGénéré par EPS Natation';
 
   window.location.href = 'mailto:?subject='+sujet+'&body='+encodeURIComponent(corps);
+}
+
+
+// ══════════════════════════════════════════════
+// FICHE ÉLÈVE G2 — Natation d'Endurance
+// ══════════════════════════════════════════════
+
+function openFicheG2() {
+  const s = curStudent;
+  if (!s.distances) s.distances = []; // historique distances
+  document.getElementById('g2-name').textContent = s.prenom+' '+s.nom;
+  const alert = document.getElementById('g2-alert');
+  if (s.note) { alert.textContent='⚡ '+s.note; alert.classList.remove('hidden'); }
+  else alert.classList.add('hidden');
+  renderFicheG2();
+  showScreen('screen-g2');
+}
+
+function renderFicheG2() {
+  const s  = curStudent;
+  const el = document.getElementById('g2-body');
+  if (!s || !el) return;
+
+  const presences = s.presences||{};
+  const nbP       = Object.values(presences).filter(v=>v==='P').length;
+  const nbTotal   = Object.keys(presences).length;
+  const dists     = s.distances||[];
+  const lastDist  = dists.length ? dists[dists.length-1] : null;
+  const bestDist  = dists.length ? Math.max(...dists.map(d=>d.metres)) : null;
+  const progDist  = dists.length>=2 ? dists[dists.length-1].metres - dists[0].metres : null;
+
+  let ageStr='';
+  if(s.ddn){const p=s.ddn.split('-');if(p.length===3){const b=new Date(+p[0],+p[1]-1,+p[2]),n=new Date();const a=n.getFullYear()-b.getFullYear()-(n<new Date(n.getFullYear(),b.getMonth(),b.getDate())?1:0);if(!isNaN(a))ageStr=a+' ans';}}
+
+  el.innerHTML = `
+    <!-- Hero -->
+    <div style="background:linear-gradient(135deg,#92400E,#D97706);border-radius:14px;
+      padding:16px;margin-bottom:10px;color:#fff;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-10px;bottom:-10px;font-size:60px;opacity:.1">🏃</div>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800">${s.prenom} ${s.nom}</div>
+      <div style="font-size:11px;opacity:.65;margin-top:2px">${s.classe}${ageStr?' · '+ageStr:''}${s.sexe?' · '+s.sexe:''}</div>
+      ${s.note?`<div style="background:rgba(255,255,255,.2);border-radius:7px;padding:3px 8px;
+        font-size:11px;font-weight:700;margin-top:6px;display:inline-block">⚡ ${s.note}</div>`:''}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <span style="background:rgba(255,255,255,.2);border-radius:10px;padding:3px 10px;font-size:11px;font-weight:700">G2 · Endurance</span>
+        ${nbTotal?`<span style="background:rgba(255,255,255,.15);border-radius:10px;padding:3px 10px;font-size:11px">${nbP}/${nbTotal} présences</span>`:''}
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px">
+      ${[
+        {lbl:'Distance réf.', val:dists.length?dists[0].metres+'m':'—'},
+        {lbl:'Meilleure',      val:bestDist?bestDist+'m':'—'},
+        {lbl:'Progression',   val:progDist!==null?(progDist>0?'+'+progDist:''+progDist)+'m':'—',
+         color:progDist>0?'var(--g3adk)':progDist<0?'var(--g1dk)':'var(--mid)'},
+      ].map(x=>`<div style="background:#fff;border-radius:10px;padding:10px 8px;text-align:center;box-shadow:0 1px 6px rgba(10,37,64,.06)">
+        <div style="font-family:'Inter',sans-serif;font-size:18px;font-weight:700;color:${x.color||'var(--navy)'};">${x.val}</div>
+        <div style="font-size:10px;color:var(--mid);margin-top:2px">${x.lbl}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- Ajouter une distance -->
+    <div class="eval-card">
+      <div class="eval-card-title">📏 Enregistrer une distance</div>
+      <p style="font-size:12px;color:var(--mid);margin-bottom:10px">
+        Distance nagée en continu (nage libre ou crawl)<br>
+        <span style="color:var(--g2dk);font-weight:600">La première saisie = distance de référence</span>
+      </p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="g2-dist-input" placeholder="ex: 150" min="0" max="3000" step="5"
+          style="flex:1;padding:10px 12px;border:2px solid var(--g2);border-radius:10px;
+          font-family:'Inter',sans-serif;font-size:20px;font-weight:700;color:var(--navy);
+          background:#fff;outline:none;text-align:center">
+        <span style="font-size:16px;color:var(--mid);font-weight:600">m</span>
+        <button onclick="g2AddDist()"
+          style="background:var(--g2);color:var(--navy);border:none;border-radius:10px;
+          padding:11px 16px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
+          ＋ Ajouter
+        </button>
+      </div>
+    </div>
+
+    <!-- Historique distances -->
+    ${dists.length ? `
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin:10px 0 8px">
+      📏 Historique des distances (${dists.length})
+    </div>
+    ${[...dists].reverse().map((d,i)=>{
+      const idx   = dists.length-1-i;
+      const prev  = idx>0 ? dists[idx-1].metres : null;
+      const diff  = prev!==null ? d.metres-prev : null;
+      const isRef = idx===0;
+      return `<div style="background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:6px;
+        box-shadow:0 1px 6px rgba(10,37,64,.06);display:flex;align-items:center;gap:12px;
+        border-left:3px solid ${isRef?'var(--g2)':'var(--lite)'}">
+        <div style="flex:0 0 50px">
+          <div style="font-size:10px;font-weight:700;color:${isRef?'var(--g2dk)':'var(--mid)'}">
+            ${isRef?'Réf.':'Séance '+idx}
+          </div>
+          <div style="font-size:9px;color:var(--lite)">${fmtDateLong(d.date)}</div>
+        </div>
+        <div style="font-family:'Inter',sans-serif;font-size:22px;font-weight:700;color:var(--navy);flex:1">
+          ${d.metres}m
+        </div>
+        ${diff!==null?`<div style="font-size:12px;font-weight:700;color:${diff>0?'var(--g3adk)':diff<0?'var(--g1dk)':'var(--mid)'}">
+          ${diff>0?'+'+diff:diff}m
+        </div>`:''}
+        <button onclick="g2DelDist(${idx})"
+          style="background:transparent;border:none;color:var(--lite);font-size:14px;cursor:pointer;padding:4px">🗑</button>
+      </div>`;
+    }).join('')}` : `
+    <div style="background:var(--gray);border-radius:10px;padding:14px;text-align:center;
+      font-size:12px;color:var(--mid);margin-top:4px">
+      Aucune distance enregistrée.<br>La première saisie servira de référence.
+    </div>`}
+
+    <div class="ebtns" style="margin-top:10px">
+      <button class="ebtn gray" onclick="showScreen('screen-end')">← Retour</button>
+    </div>`;
+}
+
+function g2AddDist() {
+  const input = document.getElementById('g2-dist-input');
+  const metres = parseInt(input.value);
+  if (!metres || metres<=0) { showToast('Saisir une distance valide'); return; }
+  if (!curStudent.distances) curStudent.distances=[];
+  curStudent.distances.push({ date:today(), metres });
+  input.value='';
+  save();
+  renderFicheG2();
+  showToast('✅ Distance enregistrée');
+}
+
+function g2DelDist(idx) {
+  showModal('Supprimer cette distance ?', () => {
+    curStudent.distances.splice(idx,1);
+    save(); renderFicheG2();
+    showToast('Distance supprimée');
+  });
 }
 
 // ── INIT ─────────────────────────────────────
